@@ -95,7 +95,7 @@ spec:
         name: acmeair-booking-db
     spec:
       containers:
-      - image: mongo
+      - image: mongo:3
         name: acmeair-booking-db
         ports:
         - containerPort: 27017
