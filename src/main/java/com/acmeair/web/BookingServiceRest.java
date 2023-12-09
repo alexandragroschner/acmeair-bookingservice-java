@@ -18,9 +18,6 @@ package com.acmeair.web;
 
 
 import com.acmeair.service.BookingService;
-
-import java.io.StringReader;
-
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -28,20 +25,14 @@ import jakarta.json.Json;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonReader;
 import jakarta.json.JsonReaderFactory;
-
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.FormParam;
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
-import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.Response.Status;
-
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.eclipse.microprofile.metrics.annotation.Timed;
+
+import java.io.StringReader;
 
 @Path("/")
 @ApplicationScoped
@@ -54,7 +45,7 @@ public class BookingServiceRest {
   JsonWebToken jwt;
 
   @Inject
-  RewardTracker rewardTracker; 
+  RewardTracker rewardTracker;
 
   @Inject
   @ConfigProperty(name = "TARGET_BOOKINGS_FOR_AUDIT", defaultValue = "4000")
@@ -64,7 +55,7 @@ public class BookingServiceRest {
   @ConfigProperty(name = "TOLERANCE_FOR_AUDIT", defaultValue = "200")
   Integer TOLERANCE_FOR_AUDIT;
 
-  private static final JsonReaderFactory factory = Json.createReaderFactory(null);  
+  private static final JsonReaderFactory factory = Json.createReaderFactory(null);
 
   /**
    * Book flights.
@@ -76,9 +67,9 @@ public class BookingServiceRest {
   @Timed(name = "com.acmeair.web.BookingServiceRest.bookFlights", tags = "app=bookingservice-java")
   @RolesAllowed({"user"})
   public /* BookingInfo */ Response bookFlights(@FormParam("userid") String userid,
-      @FormParam("toFlightId") String toFlightId, 
+      @FormParam("toFlightId") String toFlightId,
       @FormParam("toFlightSegId") String toFlightSegId,
-      @FormParam("retFlightId") String retFlightId, 
+      @FormParam("retFlightId") String retFlightId,
       @FormParam("retFlightSegId") String retFlightSegId,
       @FormParam("oneWayFlight") boolean oneWay) {
     try {
@@ -89,16 +80,16 @@ public class BookingServiceRest {
       }
 
       String bookingIdTo = bs.bookFlight(userid, toFlightSegId, toFlightId);
-      rewardTracker.updateRewardMiles(userid, toFlightSegId, true); 
+      rewardTracker.updateRewardMiles(userid, toFlightSegId, true);
 
       String bookingInfo = "";
       String bookingIdReturn = null;
 
       if (!oneWay) {
-        bookingIdReturn = bs.bookFlight(userid, retFlightSegId, retFlightId);        
-        rewardTracker.updateRewardMiles(userid, retFlightSegId, true); 
+        bookingIdReturn = bs.bookFlight(userid, retFlightSegId, retFlightId);
+        rewardTracker.updateRewardMiles(userid, retFlightSegId, true);
 
-        bookingInfo = "{\"oneWay\":false,\"returnBookingId\":\"" 
+        bookingInfo = "{\"oneWay\":false,\"returnBookingId\":\""
             + bookingIdReturn + "\",\"departBookingId\":\""
             + bookingIdTo + "\"}";
       } else {
@@ -110,7 +101,7 @@ public class BookingServiceRest {
       return Response.status(Status.INTERNAL_SERVER_ERROR).build();
     }
   }
-  
+
   /**
    * Get bookins for a customer.
    */
@@ -121,7 +112,7 @@ public class BookingServiceRest {
   @RolesAllowed({"user"})
   public Response getBookingsByUser(@PathParam("user") String userid) {
 
-    try {  
+    try {
       // make sure the user isn't trying to bookflights for someone else
       if (!userid.equals(jwt.getSubject())) {
         return Response.status(Response.Status.FORBIDDEN).build();
@@ -143,28 +134,28 @@ public class BookingServiceRest {
   @Produces("text/plain")
   @Timed(name = "com.acmeair.web.bookFlights.BookingServiceRest.cancelBookingsByNumber", tags = "app=bookingservice-java")
   @RolesAllowed({"user"})
-  public Response cancelBookingsByNumber(@FormParam("number") String number, 
+  public Response cancelBookingsByNumber(@FormParam("number") String number,
       @FormParam("userid") String userid) {
     try {
       // make sure the user isn't trying to bookflights for someone else
       if (!userid.equals(jwt.getSubject())) {
         return Response.status(Response.Status.FORBIDDEN).build();
-      }   
-      
+      }
+
       JsonObject booking;
-      
+
       try {
         JsonReader jsonReader = factory.createReader(new StringReader(bs
             .getBooking(userid, number)));
         booking = jsonReader.readObject();
         jsonReader.close();
-      
+
         bs.cancelBooking(userid, number);
       } catch (RuntimeException npe) {
         // Booking has already been deleted...
         return Response.ok("booking " + number + " deleted.").build();
       }
-      
+
       rewardTracker.updateRewardMiles(userid, booking.getString("flightSegmentId"), false);
 
       return Response.ok("booking " + number + " deleted.").build();
@@ -218,5 +209,30 @@ public class BookingServiceRest {
     }
 
     return Response.ok("fail").build();
+  }
+
+  /*
+USER ADDED CODE STARTS HERE
+ */
+
+  /**
+   * Method calls {@link com.acmeair.mongo.services.BookingServiceImpl#getBloatById(String id)} to get a Bloat from the
+   * BloatService Database. Then passes the returned JSON object as string to
+   * {@link com.acmeair.mongo.services.BookingServiceImpl#writeBloatName(String)} which assigns the Bloat a new id and
+   * writes it to Booking-DB.
+   * @param id The ID of the Bloat.
+   * @return returns ok if write was successful or HTTP 500 if not.
+   */
+  @GET
+  @Consumes("text/plain")
+  @Path("/bloatbyidandwrite/{id}")
+  @Produces("text/plain")
+  public Response getBloatByIdAndWrite(@PathParam("id") String id) {
+    try {
+      String response = bs.getBloatById(id);
+      return Response.ok(bs.writeBloatName(response)).build();
+    } catch (Exception e) {
+      return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+    }
   }
 }

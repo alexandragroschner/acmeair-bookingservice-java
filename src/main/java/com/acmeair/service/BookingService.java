@@ -16,6 +16,9 @@
 
 package com.acmeair.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+
+import java.io.IOException;
 import java.util.List;
 
 public interface BookingService {
@@ -38,4 +41,12 @@ public interface BookingService {
   String getServiceType();
 
   boolean isConnected();
+
+  /*
+USER ADDED CODE STARTS HERE
+ */
+  String getBloatById(String id) throws IOException;
+
+  String writeBloatName(String bloat) throws JsonProcessingException;
+
 }

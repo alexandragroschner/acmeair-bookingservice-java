@@ -16,30 +16,35 @@
 
 package com.acmeair.mongo.services;
 
-import static com.mongodb.client.model.Filters.eq;
-
 import com.acmeair.service.BookingService;
 import com.acmeair.service.KeyGenerator;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
-
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
+import jakarta.annotation.PostConstruct;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import org.bson.Document;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import jakarta.annotation.PostConstruct;
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
-
-import org.bson.Document;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
+import static com.mongodb.client.model.Filters.eq;
 
 @ApplicationScoped
 public class BookingServiceImpl implements BookingService {
@@ -188,5 +193,65 @@ public class BookingServiceImpl implements BookingService {
   @Override
   public boolean isConnected() {
     return (bookingCollection.countDocuments() >= 0);
+  }
+/*
+USER ADDED CODE STARTS HERE
+ */
+
+  /**
+   * Method to search a Bloat by ID. Calls BloatService via REST and expects a complete JSON object as response.
+   * @param id of the Bloat to look up
+   * @return returns the Bloat as string
+   * @throws IOException
+   */
+  @Override
+  public String getBloatById(String id) throws IOException {
+    //REST call
+    URL url = new URL("http://acmeair-bloatservice-java:9080/bloat/byid/" + id);
+    HttpURLConnection con = (HttpURLConnection) url.openConnection();
+    con.setRequestMethod("GET");
+
+    // atm logging works only with "warning"
+    // TODO find out how to define log level
+    logger.warning("bloat request to:" + url + " returned response code : " + con.getResponseCode());
+
+    //write http response to string buffer
+    BufferedReader in = new BufferedReader(
+            new InputStreamReader(con.getInputStream()));
+    String inputLine;
+    StringBuffer content = new StringBuffer();
+    while ((inputLine = in.readLine()) != null) {
+      content.append(inputLine);
+    }
+    in.close();
+
+    return content.toString();
+  }
+
+  /**
+   * Method to write the name and ID of a Bloat to booking-db. Name is taken from passed JSON object.
+   * Instead of taking the ID from the JSON object, this method generates a new ID for the Bloat. Bloat is then written to
+   * booking-db in JSON format.
+   * @param bloat JSON object in string format.
+   * @return returns the newly generated ID of the Bloat.
+   * @throws JsonProcessingException
+   */
+  public String writeBloatName(String bloat) throws JsonProcessingException {
+    ObjectMapper objectMapper = new ObjectMapper();
+    JsonNode jsonNode = objectMapper.readTree(bloat);
+
+    String bloatName = jsonNode.get("bloatName").asText();
+
+    logger.warning("got bloatname: " + bloatName);
+    String id = java.util.UUID.randomUUID().toString();
+    try {
+      Document bloatDoc = new Document("_id", id)
+              .append("bloatName", bloatName);
+      bookingCollection.insertOne(bloatDoc);
+
+      return id;
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 }
