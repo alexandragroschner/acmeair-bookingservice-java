@@ -22,3 +22,13 @@ See Documentation for the [Main Service](https://github.com/blueperf/acmeair-mai
 ## Istio Instructions
 
 See Documentation for the [Main Service](https://github.com/blueperf/acmeair-mainservice-java)
+
+## User-added Docs
+
+Getting bloat via id from bloat service and saving it in the database:
+-> make sure to add bloat in bloatService first (described in bloatService README)
+```
+# expected response: new ID of bloat added to booking db
+ID=<idOBloatInBloatDB>
+curl http://localhost/booking/bloatbyidandwrite/$ID
+```

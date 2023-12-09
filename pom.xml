@@ -193,5 +193,10 @@
       <version>2.3.0</version>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.dataformat</groupId>
+      <artifactId>jackson-dataformat-xml</artifactId>
+      <version>2.16.0</version>
+    </dependency>
   </dependencies>
 </project>
