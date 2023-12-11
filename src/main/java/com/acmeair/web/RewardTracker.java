@@ -1,20 +1,19 @@
 package com.acmeair.web;
 
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
-import java.util.concurrent.atomic.AtomicLong;
-
+import com.acmeair.client.CostAndMilesResponse;
+import com.acmeair.client.CustomerClient;
+import com.acmeair.client.FlightClient;
+import com.acmeair.service.BookingService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-
 import org.eclipse.microprofile.faulttolerance.Asynchronous;
 import org.eclipse.microprofile.faulttolerance.Timeout;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
-import com.acmeair.client.CustomerClient;
-import com.acmeair.client.FlightClient;
-import com.acmeair.service.BookingService;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.atomic.AtomicLong;
 
 @ApplicationScoped
 public class RewardTracker {
@@ -36,11 +35,12 @@ public class RewardTracker {
   //TODO: For now, use the Fault Tolerance to make this done async.
   @Timeout(500) //throws a timeout exception if method does not return withing 400 ms
   @Asynchronous
-  public CompletionStage<Long> updateRewardMiles(String userid, String flightSegId, boolean add) throws InterruptedException  {
-        
-    Long miles = flightClient.getRewardMiles(flightSegId).getMiles();
+  public CompletionStage<Long> updateRewardMiles(String userid, String flightSegId, String flightId, boolean add) throws InterruptedException  {
+    //TODO: get base cost and miles: flightClient.getCostAndMiles(flightId).getMiles()/.getCost()
+    CostAndMilesResponse costAndMiles = flightClient.getCostAndMiles(flightId);
+    //Long miles = flightClient.getRewardMiles(flightSegId).getMiles();
    
-    if (miles == null ) {
+    if (costAndMiles == null ) {
       // flight call failed, return null
       flightFailures.incrementAndGet();
       return CompletableFuture.completedFuture(null);
@@ -48,9 +48,14 @@ public class RewardTracker {
 
     flightSuccesses.incrementAndGet();
     if (!add ) {
-      miles = miles * -1;
+      costAndMiles.setMiles((costAndMiles.getMiles()) * -1);
     }
-    Long totalMiles = customerClient.updateCustomerTotalMiles(userid,miles).getMiles();
+
+    //TODO: cimplement method to get current miles instead of total miles
+    Long totalMiles = customerClient.updateCustomerTotalMiles(userid, costAndMiles.getMiles()).getMiles();
+
+    //TODO: pass flight miles, current miles and cost to reward service
+    //TODO: create rewardClient class
 
     if (totalMiles == null) {
       // customer call failed, return null

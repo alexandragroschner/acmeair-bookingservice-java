@@ -88,16 +88,23 @@ public class BookingServiceRest {
         return Response.status(Response.Status.FORBIDDEN).build();
       }
 
+      //TODO: change updateRewardMiles to:
+      //-> synchronous communication
+      //-> return a new price
+      rewardTracker.updateRewardMiles(userid, toFlightSegId, toFlightId, true);
+
+      //TODO: add new price to flight in DB
       String bookingIdTo = bs.bookFlight(userid, toFlightSegId, toFlightId);
-      rewardTracker.updateRewardMiles(userid, toFlightSegId, true); 
+
 
       String bookingInfo = "";
       String bookingIdReturn = null;
 
       if (!oneWay) {
-        bookingIdReturn = bs.bookFlight(userid, retFlightSegId, retFlightId);        
-        rewardTracker.updateRewardMiles(userid, retFlightSegId, true); 
+        bookingIdReturn = bs.bookFlight(userid, retFlightSegId, retFlightId);
+        rewardTracker.updateRewardMiles(userid, retFlightSegId, retFlightId, true);
 
+        //TODO: add new price to booking info
         bookingInfo = "{\"oneWay\":false,\"returnBookingId\":\"" 
             + bookingIdReturn + "\",\"departBookingId\":\""
             + bookingIdTo + "\"}";
@@ -164,8 +171,8 @@ public class BookingServiceRest {
         // Booking has already been deleted...
         return Response.ok("booking " + number + " deleted.").build();
       }
-      
-      rewardTracker.updateRewardMiles(userid, booking.getString("flightSegmentId"), false);
+      //TODO: check if needs fixing
+      rewardTracker.updateRewardMiles(userid, booking.getString("flightSegmentId"), booking.getString("flightId"), false);
 
       return Response.ok("booking " + number + " deleted.").build();
     } catch (Exception e) {

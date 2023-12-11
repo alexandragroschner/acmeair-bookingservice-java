@@ -19,11 +19,7 @@ package com.acmeair.client;
 import java.io.IOException;
 import java.time.temporal.ChronoUnit;
 
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.FormParam;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.*;
 
 import org.eclipse.microprofile.faulttolerance.Fallback;
 import org.eclipse.microprofile.faulttolerance.Retry;
@@ -45,5 +41,14 @@ public interface FlightClient {
     maxDuration=30, retryOn = Exception.class, abortOn = IOException.class)
   @Fallback(FlightFallbackHandler.class)
   public MilesResponse getRewardMiles(@FormParam("flightSegment") String segmentId);
-  
+
+  @GET
+  @Path("getcostandmiles/{flightId}")
+  @Produces("application/json")
+  @Timeout(500) // throws exception after 500 ms which invokes fallback handler
+  @CircuitBreaker(requestVolumeThreshold=4,failureRatio=0.5,successThreshold=10,delay=1,delayUnit=ChronoUnit.SECONDS)
+  @Retry(maxRetries=3,delayUnit=ChronoUnit.SECONDS,delay=5,durationUnit=ChronoUnit.SECONDS,
+          maxDuration=30, retryOn = Exception.class, abortOn = IOException.class)
+  @Fallback(FlightFallbackHandler.class)
+  public CostAndMilesResponse getCostAndMiles(@PathParam("flightId") String flightId);
 }
