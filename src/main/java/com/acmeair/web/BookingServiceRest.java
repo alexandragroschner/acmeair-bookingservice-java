@@ -88,28 +88,23 @@ public class BookingServiceRest {
         return Response.status(Response.Status.FORBIDDEN).build();
       }
 
-      //TODO: change updateRewardMiles to:
-      //-> synchronous communication
-      //-> return a new price
-      rewardTracker.updateRewardMiles(userid, toFlightSegId, toFlightId, true);
+      Long newPrice = rewardTracker.updateRewardMiles(userid, toFlightSegId, toFlightId, true);
 
-      //TODO: add new price to flight in DB
-      String bookingIdTo = bs.bookFlight(userid, toFlightSegId, toFlightId);
+      String bookingIdTo = bs.bookFlight(userid, toFlightSegId, toFlightId, newPrice.toString());
 
 
       String bookingInfo = "";
       String bookingIdReturn = null;
 
       if (!oneWay) {
-        bookingIdReturn = bs.bookFlight(userid, retFlightSegId, retFlightId);
+        bookingIdReturn = bs.bookFlight(userid, retFlightSegId, retFlightId, newPrice.toString());
         rewardTracker.updateRewardMiles(userid, retFlightSegId, retFlightId, true);
 
-        //TODO: add new price to booking info
-        bookingInfo = "{\"oneWay\":false,\"returnBookingId\":\"" 
+        bookingInfo = "{\"oneWay\":false,\"price\":" + newPrice + ",\"returnBookingId\":\""
             + bookingIdReturn + "\",\"departBookingId\":\""
             + bookingIdTo + "\"}";
       } else {
-        bookingInfo = "{\"oneWay\":true,\"departBookingId\":\"" + bookingIdTo + "\"}";
+        bookingInfo = "{\"oneWay\":true,\"price\":" + newPrice + ",\"departBookingId\":\"" + bookingIdTo + "\"}";
       }
       return Response.ok(bookingInfo).build();
     } catch (Exception e) {
