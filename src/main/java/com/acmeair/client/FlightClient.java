@@ -49,6 +49,6 @@ public interface FlightClient {
   @CircuitBreaker(requestVolumeThreshold=4,failureRatio=0.5,successThreshold=10,delay=1,delayUnit=ChronoUnit.SECONDS)
   @Retry(maxRetries=3,delayUnit=ChronoUnit.SECONDS,delay=5,durationUnit=ChronoUnit.SECONDS,
           maxDuration=30, retryOn = Exception.class, abortOn = IOException.class)
-  @Fallback(FlightFallbackHandler.class)
+  @Fallback(FlightCostAndMilesFallbackHandler.class)
   public CostAndMilesResponse getCostAndMiles(@PathParam("flightId") String flightId);
 }
