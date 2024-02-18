@@ -5,6 +5,7 @@ import com.acmeair.client.*;
 import com.acmeair.service.BookingService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
 import java.util.concurrent.atomic.AtomicLong;
@@ -25,6 +26,9 @@ public class RewardTracker {
   @Inject @RestClient
   private RewardClient rewardClient;
 
+  @Inject @RestClient
+  private CarClient carClient;
+
   private AtomicLong customerSuccesses = new AtomicLong(0);
   private AtomicLong flightSuccesses = new AtomicLong(0);
   private AtomicLong customerFailures = new AtomicLong(0);
@@ -35,6 +39,12 @@ public class RewardTracker {
 
     CostAndMilesResponse costAndMiles = flightClient.getCostAndMiles(flightId);
     logger.warning("costAndMiles requested");
+    CarResponse testCar = carClient.getCarByName("trabant");
+    if (testCar == null) {
+      logger.warning("testCar is null");
+    }
+
+    logger.warning("CALLING CAR SERVICE: " + testCar.getId() + " " + testCar.getCarName());
    
     if (costAndMiles == null ) {
       // flight call failed, return null
