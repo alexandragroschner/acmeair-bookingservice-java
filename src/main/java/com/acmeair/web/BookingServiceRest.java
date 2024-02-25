@@ -17,9 +17,13 @@
 package com.acmeair.web;
 
 
+import com.acmeair.client.CarClient;
+import com.acmeair.client.CarResponse;
 import com.acmeair.service.BookingService;
 
 import java.io.StringReader;
+import java.util.Objects;
+import java.util.logging.Logger;
 
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -29,19 +33,14 @@ import jakarta.json.JsonObject;
 import jakarta.json.JsonReader;
 import jakarta.json.JsonReaderFactory;
 
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.FormParam;
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
-import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.Response.Status;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.eclipse.microprofile.metrics.annotation.Timed;
+import org.eclipse.microprofile.rest.client.inject.RestClient;
 
 @Path("/")
 @ApplicationScoped
@@ -64,7 +63,11 @@ public class BookingServiceRest {
   @ConfigProperty(name = "TOLERANCE_FOR_AUDIT", defaultValue = "200")
   Integer TOLERANCE_FOR_AUDIT;
 
-  private static final JsonReaderFactory factory = Json.createReaderFactory(null);  
+  @Inject @RestClient
+  private CarClient carClient;
+
+  private static final JsonReaderFactory factory = Json.createReaderFactory(null);
+  private static final Logger logger = Logger.getLogger(BookingServiceRest.class.getName());
 
   /**
    * Book flights.
@@ -81,36 +84,7 @@ public class BookingServiceRest {
       @FormParam("retFlightId") String retFlightId, 
       @FormParam("retFlightSegId") String retFlightSegId,
       @FormParam("oneWayFlight") boolean oneWay) {
-    try {
-
-      // make sure the user isn't trying to bookflights for someone else
-      if (!userid.equals(jwt.getSubject())) {
-        return Response.status(Response.Status.FORBIDDEN).build();
-      }
-
-      Long newPrice = rewardTracker.updateRewardMiles(userid, toFlightSegId, toFlightId, true);
-
-      String bookingIdTo = bs.bookFlight(userid, toFlightSegId, toFlightId, newPrice.toString());
-
-
-      String bookingInfo = "";
-      String bookingIdReturn = null;
-
-      if (!oneWay) {
-        bookingIdReturn = bs.bookFlight(userid, retFlightSegId, retFlightId, newPrice.toString());
-        rewardTracker.updateRewardMiles(userid, retFlightSegId, retFlightId, true);
-
-        bookingInfo = "{\"oneWay\":false,\"price\":" + newPrice + ",\"returnBookingId\":\""
-            + bookingIdReturn + "\",\"departBookingId\":\""
-            + bookingIdTo + "\"}";
-      } else {
-        bookingInfo = "{\"oneWay\":true,\"price\":" + newPrice + ",\"departBookingId\":\"" + bookingIdTo + "\"}";
-      }
-      return Response.ok(bookingInfo).build();
-    } catch (Exception e) {
-      e.printStackTrace();
-      return Response.status(Status.INTERNAL_SERVER_ERROR).build();
-    }
+    return bookFlightsAndCar(userid, toFlightId, toFlightSegId, retFlightId, retFlightSegId, oneWay, null);
   }
   
   /**
@@ -220,5 +194,84 @@ public class BookingServiceRest {
     }
 
     return Response.ok("fail").build();
+  }
+
+  //USER ADDED CODE:
+  /**
+   * Book flights.
+   */
+  @POST
+  @Consumes("text/plain")
+  @Path("/bookflightsandcar")
+  @Produces("text/plain")
+  public Response bookFlightsAndCar(@QueryParam("userid") String userid,
+                                    @QueryParam("toFlightId") String toFlightId,
+                                    @QueryParam("toFlightSegId") String toFlightSegId,
+                                    @QueryParam("retFlightId") String retFlightId,
+                                    @QueryParam("retFlightSegId") String retFlightSegId,
+                                    @QueryParam("oneWayFlight") boolean oneWay,
+                                    @QueryParam("carname") String carName) {
+    try {
+
+      // make sure the user isn't trying to bookflights for someone else
+//      if (!userid.equals(jwt.getSubject())) {
+//        return Response.status(Response.Status.FORBIDDEN).build();
+//      }
+
+      CarResponse carToBook = null;
+      if (Objects.nonNull(carName)) {
+        logger.warning("Calling car service for car: " + carName);
+        carToBook = carClient.getCarByName(carName);
+      }
+
+      Long newPrice;
+      String bookingId;
+      Long totalPrice;
+
+      //check if one way flight
+      if (!oneWay) {
+        newPrice = rewardTracker.updateRewardMiles(userid, toFlightSegId, toFlightId, retFlightSegId, retFlightId, true);
+
+        //check if car is booked
+        if (Objects.nonNull(carToBook)) {
+          totalPrice = newPrice + carToBook.getBaseCost();
+          logger.warning("CAR PRICE: " + carToBook.getBaseCost());
+          logger.warning("TOTAL PRICE: " + totalPrice);
+          bookingId = bs.bookFlightWithCar(userid, toFlightSegId, toFlightId, retFlightId, carName,
+                  totalPrice.toString(), newPrice.toString(), ("" + carToBook.getBaseCost()));
+        } else {
+          totalPrice = newPrice;
+          bookingId = bs.bookFlight(userid, toFlightSegId, toFlightId, retFlightId, newPrice.toString());
+        }
+      //one way flight
+      } else {
+        newPrice = rewardTracker.updateRewardMiles(userid, toFlightSegId, toFlightId, true);
+
+        //check if car is booked
+        if (Objects.nonNull(carToBook)) {
+          totalPrice = newPrice + carToBook.getBaseCost();
+          logger.warning("CAR PRICE: " + carToBook.getBaseCost());
+          logger.warning("TOTAL PRICE: " + totalPrice);
+          bookingId = bs.bookFlightWithCar(userid, toFlightSegId, toFlightId, "NONE - ONE WAY FLIGHT",
+                  carName, totalPrice.toString(), newPrice.toString(), ("" + carToBook.getBaseCost()));
+        } else {
+          totalPrice = newPrice;
+          bookingId = bs.bookFlight(userid, toFlightSegId, toFlightId, "NONE - ONE WAY FLIGHT", newPrice.toString());
+        }
+      }
+
+      String bookingInfo = "{\"oneWay\":\"" + oneWay
+              + "\",\"price\":\"" + totalPrice
+              + "\",\"flightPrice\":\"" + newPrice
+              + "\",\"carPrice\":\"" + (totalPrice - newPrice)
+              + "\",\"bookingId\":\"" + bookingId
+              + "\",\"carBooked\":\"" + (carToBook == null ? "NONE" : carToBook.getCarName())
+              + "\"}";
+
+      return Response.ok(bookingInfo).build();
+    } catch (Exception e) {
+      e.printStackTrace();
+      return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+    }
   }
 }

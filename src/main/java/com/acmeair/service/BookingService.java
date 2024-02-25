@@ -20,10 +20,8 @@ import java.util.List;
 
 public interface BookingService {
 
-  // String bookFlight(String customerId, FlightPK flightId);
-  // String bookFlight(String customerId, String flightId);
-
-  String bookFlight(String customerId, String flightSegmentId, String flightId, String price);
+  String bookFlight(String customerId, String flightSegmentId, String flightId,
+                    String retFlightId, String price);
 
   String getBooking(String user, String id);
 
@@ -38,4 +36,7 @@ public interface BookingService {
   String getServiceType();
 
   boolean isConnected();
+
+  String bookFlightWithCar(String customerId, String flightSegmentId, String flightId, String retFlightId,
+                           String carName, String totalPrice, String flightPrice, String carPrice);
 }

@@ -16,17 +16,19 @@
 
 package com.acmeair.mongo.services;
 
-import static com.mongodb.client.model.Filters.eq;
-
 import com.acmeair.service.BookingService;
 import com.acmeair.service.KeyGenerator;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
-
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
+import jakarta.annotation.PostConstruct;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import org.bson.Document;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -34,12 +36,7 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import jakarta.annotation.PostConstruct;
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
-
-import org.bson.Document;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
+import static com.mongodb.client.model.Filters.eq;
 
 @ApplicationScoped
 public class BookingServiceImpl implements BookingService {
@@ -72,7 +69,7 @@ public class BookingServiceImpl implements BookingService {
   /**
    * Book Flight.
    */
-  public String bookFlight(String customerId, String flightId, String price) {
+  public String bookFlight(String customerId, String flightId, String retFlightId, String price) {
     try {
 
       String bookingId = keyGenerator.generate().toString();
@@ -80,8 +77,12 @@ public class BookingServiceImpl implements BookingService {
       Document bookingDoc = new Document("_id", bookingId)
           .append("customerId", customerId)
           .append("flightId", flightId)
+          .append("retFlightId", retFlightId)
+          .append("carBooked", "NONE")
           .append("dateOfBooking", new Date())
-          .append("price", price);
+          .append("flightPrice", price)
+          .append("carPrice", 0)
+          .append("totalPrice", price);
 
         bookingCollection.insertOne(bookingDoc);
 
@@ -92,20 +93,25 @@ public class BookingServiceImpl implements BookingService {
   }
 
   @Override
-  public String bookFlight(String customerId, String flightSegmentId, String flightId, String price) {
+  public String bookFlight(String customerId, String flightSegmentId, String flightId,
+                           String retFlightId, String price) {
     if (flightSegmentId == null) {
-      return bookFlight(customerId, flightId, price);
+      return bookFlight(customerId, flightId, retFlightId, price);
     } else {
 
       try {
 
         String bookingId = keyGenerator.generate().toString();
 
-        Document bookingDoc = new Document("_id", bookingId).append("customerId", customerId)
-            .append("flightId", flightId)
-            .append("dateOfBooking", new Date())
-            .append("flightSegmentId", flightSegmentId)
-            .append("price", price);
+        Document bookingDoc = new Document("_id", bookingId)
+                .append("customerId", customerId)
+                .append("flightId", flightId)
+                .append("retFlightId", retFlightId)
+                .append("carBooked", "NONE")
+                .append("dateOfBooking", new Date())
+                .append("flightPrice", price)
+                .append("carPrice", "0")
+                .append("totalPrice", price);
         
         if (TRACE_EXTRA_SPAN) {
           Span childSpan = tracer.spanBuilder("Created bookFlight Span")
@@ -191,5 +197,42 @@ public class BookingServiceImpl implements BookingService {
   @Override
   public boolean isConnected() {
     return (bookingCollection.countDocuments() >= 0);
+  }
+
+  //USER ADDED CODE
+  @Override
+  public String bookFlightWithCar(String customerId, String flightSegmentId, String flightId, String retFlightId,
+                                  String carName, String totalPrice, String flightPrice, String carPrice) {
+    try {
+
+      String bookingId = keyGenerator.generate().toString();
+
+      Document bookingDoc = new Document("_id", bookingId)
+              .append("customerId", customerId)
+              .append("flightId", flightId)
+              .append("retFlightId", retFlightId)
+              .append("carBooked", carName)
+              .append("dateOfBooking", new Date())
+              .append("flightPrice", flightPrice)
+              .append("carPrice", carPrice)
+              .append("totalPrice", totalPrice);
+
+      if (TRACE_EXTRA_SPAN) {
+        Span childSpan = tracer.spanBuilder("Created bookFlight Span")
+                .setParent(Context.current().with(activeSpan))
+                .startSpan();
+
+        childSpan.setAttribute("Created", true);
+        bookingCollection.insertOne(bookingDoc);
+        childSpan.end();
+      } else {
+        bookingCollection.insertOne(bookingDoc);
+      }
+
+      return bookingId;
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+
   }
 }
