@@ -16,25 +16,19 @@
 
 package com.acmeair.client;
 
-import java.io.IOException;
-import java.time.temporal.ChronoUnit;
-
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.FormParam;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
-import jakarta.ws.rs.Produces;
-
+import jakarta.ws.rs.*;
+import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
 import org.eclipse.microprofile.faulttolerance.Fallback;
 import org.eclipse.microprofile.faulttolerance.Retry;
 import org.eclipse.microprofile.faulttolerance.Timeout;
-import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
 import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
+
+import java.io.IOException;
+import java.time.temporal.ChronoUnit;
 
 @RegisterRestClient(configKey="customerClient")
 @Path("/")
-public interface CustomerClient {  
+public interface CustomerClient {
 
   @POST
   @Path("/internal/updateCustomerTotalMiles/{custid}")
@@ -45,7 +39,8 @@ public interface CustomerClient {
   @Retry(maxRetries=3,delayUnit=ChronoUnit.SECONDS,delay=5,durationUnit=ChronoUnit.SECONDS,
     maxDuration=30, retryOn = Exception.class, abortOn = IOException.class)
   @Fallback(CustomerFallbackHandler.class)
-  public MilesResponse updateCustomerTotalMiles(
-      @PathParam("custid") String customerid, 
-      @FormParam("miles") Long miles);
+  public CustomerMilesResponse updateCustomerTotalMiles(
+      @PathParam("custid") String customerid,
+      @FormParam("miles") Long miles,
+      @FormParam("loyalty") Long loyaltyPoints);
 }

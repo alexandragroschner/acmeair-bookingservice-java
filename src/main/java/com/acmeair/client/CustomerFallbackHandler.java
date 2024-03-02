@@ -15,19 +15,18 @@
 *******************************************************************************/
 package com.acmeair.client;
 
-import java.util.logging.Logger;
-
 import jakarta.enterprise.context.ApplicationScoped;
-
 import org.eclipse.microprofile.faulttolerance.ExecutionContext;
 import org.eclipse.microprofile.faulttolerance.FallbackHandler;
 
+import java.util.logging.Logger;
+
 @ApplicationScoped
-public class CustomerFallbackHandler implements FallbackHandler<MilesResponse> {
+public class CustomerFallbackHandler implements FallbackHandler<CustomerMilesResponse> {
   protected static Logger logger =  Logger.getLogger(CustomerFallbackHandler.class.getName());
 
   @Override
-  public MilesResponse handle(ExecutionContext context) {
+  public CustomerMilesResponse handle(ExecutionContext context) {
     System.out.println("Customer Call Failed - check connection to Customer Service.");
     logger.info("fallback for " + context.getMethod().getName());		
     return null;
