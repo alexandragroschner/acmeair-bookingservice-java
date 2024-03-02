@@ -231,10 +231,11 @@ public class BookingServiceRest {
             Long totalPrice;
 
             //check if one way flight
+            boolean carBooked = Objects.nonNull(carName) && !carName.equals("null") && !carName.trim().isEmpty();
             if (!oneWay) {
                 newPrices = rewardTracker.updateRewardMiles(userid, toFlightId, retFlightId, true, carName, false);
 
-                if (Objects.nonNull(carName)) {
+                if (carBooked) {
                     totalPrice = newPrices.get(0) + newPrices.get(1);
                     bookingId = bs.bookFlightWithCar(userid, toFlightSegId, toFlightId, retFlightId, carName,
                             // totalPrice
@@ -251,7 +252,7 @@ public class BookingServiceRest {
                 logger.warning("ONE WAY");
                 newPrices = rewardTracker.updateRewardMiles(userid, toFlightId,null, true, carName, true);
 
-                if (Objects.nonNull(carName)) {
+                if (carBooked) {
                     totalPrice = newPrices.get(0) + newPrices.get(1);
                     bookingId = bs.bookFlightWithCar(userid, toFlightSegId, toFlightId, "NONE - ONE WAY FLIGHT", carName,
                             // totalPrice
