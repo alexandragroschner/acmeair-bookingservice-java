@@ -59,8 +59,7 @@ public class RewardTracker {
 
     //USER ADDED CODE:
 
-    public List<Long> updateRewardMiles(String userid, String flightSegId, String flightId,
-                                        String retFlightSegId, String retFlightId, boolean add,
+    public List<Long> updateRewardMiles(String userid, String flightId, String retFlightId, boolean add,
                                         String carName, boolean isOneWay) {
 
         List<Long> updatedPrices = new ArrayList<>();
@@ -108,6 +107,7 @@ public class RewardTracker {
         // pass flight miles, current miles and cost to reward service
         PriceResponse newFlightPrice = rewardClient.getNewPrice(totalFlightMiles.toString(), currentMilesAndLoyalty.getMiles().toString(), totalFlightPrice.toString());
         updatedPrices.add(newFlightPrice.getPrice());
+
         //get new car price
         Long loyaltyPoints = 0L;
         if (Objects.nonNull(carToBook)) {
@@ -125,6 +125,9 @@ public class RewardTracker {
 
         logger.warning("new flight price is " + newFlightPrice.getPrice());
 
+        if (!add) {
+            loyaltyPoints = loyaltyPoints * -1;
+        }
         CustomerMilesResponse updatedMilesAndLoyalty = customerClient.updateCustomerTotalMiles(userid, totalFlightMiles, loyaltyPoints);
         logger.warning("Updated miles: " + updatedMilesAndLoyalty.getMiles());
         logger.warning("Updated loyalty: " + updatedMilesAndLoyalty.getLoyaltyPoints());

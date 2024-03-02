@@ -138,8 +138,17 @@ public class BookingServiceRest {
                 // Booking has already been deleted...
                 return Response.ok("booking " + number + " deleted.").build();
             }
+
+            boolean isOneWay = booking.getString("retFlightId").equals("NONE - ONE WAY FLIGHT");
             //TODO: check if needs fixing
-            //rewardTracker.updateRewardMiles(userid, booking.getString("flightSegmentId"), booking.getString("flightId"), false);
+
+            if (booking.getString("carBooked").equalsIgnoreCase("none")) {
+                rewardTracker.updateRewardMiles(userid, booking.getString("flightId"),
+                        booking.getString("retFlightId"), false, null, isOneWay);
+            } else {
+                rewardTracker.updateRewardMiles(userid, booking.getString("flightId"),
+                        booking.getString("retFlightId"), false, booking.getString("carBooked"), isOneWay);
+            }
 
             return Response.ok("booking " + number + " deleted.").build();
         } catch (Exception e) {
@@ -223,7 +232,7 @@ public class BookingServiceRest {
 
             //check if one way flight
             if (!oneWay) {
-                newPrices = rewardTracker.updateRewardMiles(userid, toFlightSegId, toFlightId, retFlightSegId, retFlightId, true, carName, oneWay);
+                newPrices = rewardTracker.updateRewardMiles(userid, toFlightId, retFlightId, true, carName, false);
 
                 if (Objects.nonNull(carName)) {
                     totalPrice = newPrices.get(0) + newPrices.get(1);
@@ -240,7 +249,7 @@ public class BookingServiceRest {
                 //one way flight
             } else {
                 logger.warning("ONE WAY");
-                newPrices = rewardTracker.updateRewardMiles(userid, toFlightSegId, toFlightId, null, null, true, carName, oneWay);
+                newPrices = rewardTracker.updateRewardMiles(userid, toFlightId,null, true, carName, true);
 
                 if (Objects.nonNull(carName)) {
                     totalPrice = newPrices.get(0) + newPrices.get(1);
