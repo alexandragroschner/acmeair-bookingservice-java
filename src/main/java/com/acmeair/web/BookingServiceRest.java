@@ -285,4 +285,24 @@ public class BookingServiceRest {
             return Response.status(Status.INTERNAL_SERVER_ERROR).build();
         }
     }
+
+    @GET
+    @Path("/db/reload")
+    public Response reloadDb() {
+        try {
+            bs.purgeDb();
+            bs.loadDbs();
+            return Response.ok("(Re)Loaded booking database").build();
+        } catch (Exception e) {
+            logger.warning(e.toString());
+            return Response.serverError().build();
+        }
+    }
+
+    @GET
+    @Path("/db/purge")
+    public Response purgeDb() {
+        bs.purgeDb();
+        return Response.ok("Purged booking database").build();
+    }
 }

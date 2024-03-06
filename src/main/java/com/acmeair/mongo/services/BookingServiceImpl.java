@@ -30,9 +30,14 @@ import jakarta.inject.Inject;
 import org.bson.Document;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.LineNumberReader;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.StringTokenizer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -44,6 +49,8 @@ public class BookingServiceImpl implements BookingService {
   private static final  Logger logger = Logger.getLogger(BookingService.class.getName());
 
   private MongoCollection<Document> bookingCollection;
+  private MongoCollection<Document> rewardFlightCollection;
+  private MongoCollection<Document> rewardCarCollection;
 
   @Inject
   KeyGenerator keyGenerator;
@@ -63,7 +70,15 @@ public class BookingServiceImpl implements BookingService {
 
   @PostConstruct
   public void initialization() {
+    logger.warning("Initializing BookingServiceImpl. Getting collections...");
     bookingCollection = database.getCollection("booking");
+    rewardFlightCollection = database.getCollection("rewardFlight");
+    rewardCarCollection = database.getCollection("rewardCar");
+    try {
+      loadDbs();
+    } catch (Exception e) {
+      logger.warning("Error in initialization of RewardServiceImpl" + e);
+    }
   }
   
   /**
@@ -234,5 +249,58 @@ public class BookingServiceImpl implements BookingService {
       throw new RuntimeException(e);
     }
 
+  }
+
+  @Override
+  public void loadDbs() throws IOException {
+    loadDb(rewardFlightCollection, "/META-INF/milesstatusmapping.csv");
+    loadDb(rewardCarCollection, "/META-INF/loyaltypointsstatusmapping.csv");
+  }
+
+  @Override
+  public void loadDb(MongoCollection<Document> collection, String resource) throws IOException {
+
+    if (collection.countDocuments() != 0) {
+      logger.warning("Loading booking db aborted. Database is not empty!");
+      return;
+    }
+
+    InputStream csvInputStream = BookingServiceImpl.class.getResourceAsStream(resource);
+
+    assert csvInputStream != null;
+    LineNumberReader lnr = new LineNumberReader(new InputStreamReader(csvInputStream));
+
+    while (true) {
+      String line = lnr.readLine();
+      // end reading lines when EOF
+      if (line == null || line.trim().isEmpty()) {
+        break;
+      }
+      StringTokenizer st = new StringTokenizer(line, ",");
+      ArrayList<String> lineAsStringArray = new ArrayList<>();
+
+      // adds value of every column of current line to array as string
+      while (st.hasMoreTokens()) {
+        lineAsStringArray.add(st.nextToken());
+      }
+      logger.warning("Inserting values for status: " + lineAsStringArray.get(1));
+
+      collection.insertOne(new Document("_id", lineAsStringArray.get(0))
+              .append("status", lineAsStringArray.get(1))
+              .append("reduction", lineAsStringArray.get(2)));
+    }
+  }
+
+  @Override
+  public void purgeDb() {
+    for (Document d : rewardFlightCollection.find()) {
+      rewardFlightCollection.deleteOne(d);
+    }
+
+    for (Document d : rewardCarCollection.find()) {
+      rewardCarCollection.deleteOne(d);
+    }
+    logger.warning("Purged DB - Amount of documents left in reward collections: " + (rewardFlightCollection.countDocuments()
+            + rewardCarCollection.countDocuments()));
   }
 }

@@ -30,6 +30,13 @@ If user authentication is turned off in the code, just remove the -b option and 
 
 Note that flight IDs are also generated randomly at startup, so these will have to be either looked up in the database over the monosh or copied from the browser inspect tool as well.
 ```
+
+# expected response: "Loaded reward database"
+curl http://localhost/booking/db/reload
+
+# expected response: "Purged reward database"
+curl http://localhost/booking/db/purge
+
 Expected return: the booking as json
 curl -X POST -b "Bearer=$BEARERTOKEN;loggedinuser=$USERID" http://localhost/booking/bookflightsandcar?userid=$USERID&toFlightId=$FLIGHTID&toFlightSegId=$FLIGHTSEGID&retFlightId=$RETFLIGHTID&retFlightSegId=$RETFLIGHTSEGID&oneWayFlight=$ISONEWAY&carname=$CARNAME
 

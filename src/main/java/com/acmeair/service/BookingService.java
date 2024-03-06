@@ -16,6 +16,10 @@
 
 package com.acmeair.service;
 
+import com.mongodb.client.MongoCollection;
+import org.bson.Document;
+
+import java.io.IOException;
 import java.util.List;
 
 public interface BookingService {
@@ -39,4 +43,10 @@ public interface BookingService {
 
   String bookFlightWithCar(String customerId, String flightSegmentId, String flightId, String retFlightId,
                            String carName, String totalPrice, String flightPrice, String carPrice);
+
+  void loadDbs() throws IOException;
+
+  void loadDb(MongoCollection<Document> collection, String resource) throws IOException;
+
+  void purgeDb();
 }
