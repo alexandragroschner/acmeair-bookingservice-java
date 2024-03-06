@@ -15,13 +15,12 @@
  *******************************************************************************/
 package com.acmeair.client.fallback;
 
-import java.util.logging.Logger;
-
 import com.acmeair.client.responses.CostAndMilesResponse;
 import jakarta.enterprise.context.Dependent;
-
 import org.eclipse.microprofile.faulttolerance.ExecutionContext;
 import org.eclipse.microprofile.faulttolerance.FallbackHandler;
+
+import java.util.logging.Logger;
 
 @Dependent
 public class FlightCostAndMilesFallbackHandler implements FallbackHandler<CostAndMilesResponse> {

@@ -5,7 +5,6 @@ public class CustomerMilesResponse {
     private Long miles;
     private Long loyaltyPoints;
 
-
     public CustomerMilesResponse() {
     }
 

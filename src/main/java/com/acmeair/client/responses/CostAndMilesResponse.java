@@ -4,13 +4,12 @@ public class CostAndMilesResponse {
     private Long cost;
     private Long miles;
 
-
-    public CostAndMilesResponse() {}
+    public CostAndMilesResponse() {
+    }
 
     public CostAndMilesResponse(Long cost, Long miles) {
         this.setCost(cost);
         this.setMiles(miles);
-
     }
 
     public Long getCost() {

@@ -233,9 +233,11 @@ public class BookingServiceRest {
             //check if one way flight
             boolean carBooked = Objects.nonNull(carName) && !carName.equals("null") && !carName.trim().isEmpty();
             if (!oneWay) {
+                logger.warning("Booking is not one way.");
                 newPrices = rewardTracker.updateRewardMiles(userid, toFlightId, retFlightId, true, carName, false);
 
                 if (carBooked) {
+                    logger.warning("Booking includes car.");
                     totalPrice = newPrices.get(0) + newPrices.get(1);
                     bookingId = bs.bookFlightWithCar(userid, toFlightSegId, toFlightId, retFlightId, carName,
                             // totalPrice
@@ -245,14 +247,16 @@ public class BookingServiceRest {
                             // newCarPrice (0 if no car)
                             newPrices.get(1).toString());
                 } else {
+                    logger.warning("Booking includes no car.");
                     bookingId = bs.bookFlight(userid, toFlightSegId, toFlightId, retFlightId, newPrices.get(0).toString());
                 }
                 //one way flight
             } else {
-                logger.warning("ONE WAY");
+                logger.warning("Booking is one way.");
                 newPrices = rewardTracker.updateRewardMiles(userid, toFlightId,null, true, carName, true);
 
                 if (carBooked) {
+                    logger.warning("Booking includes car.");
                     totalPrice = newPrices.get(0) + newPrices.get(1);
                     bookingId = bs.bookFlightWithCar(userid, toFlightSegId, toFlightId, "NONE - ONE WAY FLIGHT", carName,
                             // totalPrice
@@ -262,6 +266,7 @@ public class BookingServiceRest {
                             // newCarPrice (0 if no car)
                             newPrices.get(1).toString());
                 } else {
+                    logger.warning("Booking includes no car.");
                     bookingId = bs.bookFlight(userid, toFlightSegId, toFlightId, "NONE - ONE WAY FLIGHT", newPrices.get(0).toString());
                 }
             }

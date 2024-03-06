@@ -13,7 +13,7 @@ public class CarFallbackHandler implements FallbackHandler<CarResponse> {
 
     @Override
     public CarResponse handle(ExecutionContext context) {
-        System.out.println("Car Service Call Failed - check connection to Reward Service.");
+        System.out.println("Car Service Call Failed - check connection to Car Service.");
         logger.info("fallback for " + context.getMethod().getName());
         return null;
     }

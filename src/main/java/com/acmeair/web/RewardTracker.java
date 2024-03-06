@@ -1,7 +1,10 @@
 package com.acmeair.web;
 
 
-import com.acmeair.client.*;
+import com.acmeair.client.CarClient;
+import com.acmeair.client.CustomerClient;
+import com.acmeair.client.FlightClient;
+import com.acmeair.client.RewardClient;
 import com.acmeair.client.responses.CarResponse;
 import com.acmeair.client.responses.CostAndMilesResponse;
 import com.acmeair.client.responses.CustomerMilesResponse;
@@ -62,16 +65,18 @@ public class RewardTracker {
     }
 
     //USER ADDED CODE:
-
     public List<Long> updateRewardMiles(String userid, String flightId, String retFlightId, boolean add,
                                         String carName, boolean isOneWay) {
 
+        // this will be the response and contain the updated flight price and updated car price (if no car -> null)
         List<Long> updatedPrices = new ArrayList<>();
 
+        // gets miles and cost of chosen flight
         CostAndMilesResponse costAndMiles = flightClient.getCostAndMiles(flightId);
         CostAndMilesResponse retCostAndMiles;
         if (isOneWay) {
             // make an empty return miles response if no return flight
+            logger.warning("Creating empty Return Flight CostAndMilesResponse due one way booking");
             retCostAndMiles = new CostAndMilesResponse(0L, 0L);
         } else {
             retCostAndMiles = flightClient.getCostAndMiles(retFlightId);
@@ -87,9 +92,9 @@ public class RewardTracker {
 
         if (Objects.nonNull(carName)) {
             carToBook = carClient.getCarByName(carName);
-            logger.warning("Calling car service for car: " + carName);
+            logger.warning("Called car service for car: " + carName);
             if (carToBook == null) {
-                logger.warning("COULD NOT FIND REQUESTED CAR");
+                logger.warning("carToBook is null - could not find car with name: " + carName);
                 return null;
             }
         }
@@ -123,7 +128,7 @@ public class RewardTracker {
             updatedPrices.add(newCarPrice.getPrice());
         } else {
             // add 0 as car price if no car is booked
-            logger.warning("CAR NULL - ADDING NO CAR PRICE");
+            logger.warning("adding 0 as car price (no car booked)");
             updatedPrices.add(0L);
         }
 
@@ -138,7 +143,6 @@ public class RewardTracker {
 
         // Both calls succeeded!
         customerSuccesses.incrementAndGet();
-        logger.warning("RETURNING UPDATED PRICES");
         return updatedPrices;
     }
 }
