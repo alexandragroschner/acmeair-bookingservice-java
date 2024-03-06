@@ -19,6 +19,10 @@ package com.acmeair.client;
 import java.io.IOException;
 import java.time.temporal.ChronoUnit;
 
+import com.acmeair.client.fallback.FlightCostAndMilesFallbackHandler;
+import com.acmeair.client.fallback.FlightFallbackHandler;
+import com.acmeair.client.responses.CostAndMilesResponse;
+import com.acmeair.client.responses.MilesResponse;
 import jakarta.ws.rs.*;
 
 import org.eclipse.microprofile.faulttolerance.Fallback;

@@ -1,7 +1,8 @@
 package com.acmeair.client;
 
+import com.acmeair.client.fallback.CarFallbackHandler;
+import com.acmeair.client.responses.CarResponse;
 import jakarta.ws.rs.*;
-import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
 import org.eclipse.microprofile.faulttolerance.Fallback;
 import org.eclipse.microprofile.faulttolerance.Retry;

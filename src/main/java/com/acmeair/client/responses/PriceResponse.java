@@ -1,4 +1,4 @@
-package com.acmeair.client;
+package com.acmeair.client.responses;
 
 public class PriceResponse {
     private Long price;

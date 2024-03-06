@@ -13,22 +13,22 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-package com.acmeair.client;
+package com.acmeair.client.fallback;
 
-import java.util.logging.Logger;
-
-import jakarta.enterprise.context.Dependent;
-
+import com.acmeair.client.responses.CustomerMilesResponse;
+import jakarta.enterprise.context.ApplicationScoped;
 import org.eclipse.microprofile.faulttolerance.ExecutionContext;
 import org.eclipse.microprofile.faulttolerance.FallbackHandler;
 
-@Dependent
-public class FlightFallbackHandler implements FallbackHandler<MilesResponse> {
-  protected static Logger logger =  Logger.getLogger(FlightFallbackHandler.class.getName());
+import java.util.logging.Logger;
+
+@ApplicationScoped
+public class CustomerFallbackHandler implements FallbackHandler<CustomerMilesResponse> {
+  protected static Logger logger =  Logger.getLogger(CustomerFallbackHandler.class.getName());
 
   @Override
-  public MilesResponse handle(ExecutionContext context) {
-    System.out.println("Flight Call Failed - check connection to Flight Service.");
+  public CustomerMilesResponse handle(ExecutionContext context) {
+    System.out.println("Customer Call Failed - check connection to Customer Service.");
     logger.info("fallback for " + context.getMethod().getName());		
     return null;
   }

@@ -1,5 +1,7 @@
 package com.acmeair.client;
 
+import com.acmeair.client.fallback.RewardFallbackHandler;
+import com.acmeair.client.responses.PriceResponse;
 import jakarta.ws.rs.*;
 import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
 import org.eclipse.microprofile.faulttolerance.Fallback;

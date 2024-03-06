@@ -1,5 +1,6 @@
-package com.acmeair.client;
+package com.acmeair.client.fallback;
 
+import com.acmeair.client.responses.CarResponse;
 import jakarta.enterprise.context.Dependent;
 import org.eclipse.microprofile.faulttolerance.ExecutionContext;
 import org.eclipse.microprofile.faulttolerance.FallbackHandler;

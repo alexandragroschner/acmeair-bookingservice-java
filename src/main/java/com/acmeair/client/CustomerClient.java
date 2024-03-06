@@ -16,6 +16,8 @@
 
 package com.acmeair.client;
 
+import com.acmeair.client.fallback.CustomerFallbackHandler;
+import com.acmeair.client.responses.CustomerMilesResponse;
 import jakarta.ws.rs.*;
 import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
 import org.eclipse.microprofile.faulttolerance.Fallback;
