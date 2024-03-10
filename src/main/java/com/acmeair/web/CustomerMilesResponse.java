@@ -1,4 +1,4 @@
-package com.acmeair.client.responses;
+package com.acmeair.web;
 
 public class CustomerMilesResponse {
 

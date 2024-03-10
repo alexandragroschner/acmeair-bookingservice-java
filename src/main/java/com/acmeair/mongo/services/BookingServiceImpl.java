@@ -16,7 +16,7 @@
 
 package com.acmeair.mongo.services;
 
-import com.acmeair.client.responses.CustomerMilesResponse;
+import com.acmeair.web.CustomerMilesResponse;
 import com.acmeair.service.BookingService;
 import com.acmeair.service.KeyGenerator;
 import com.mongodb.client.MongoCollection;

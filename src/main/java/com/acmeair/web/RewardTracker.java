@@ -5,7 +5,6 @@ import com.acmeair.client.CarClient;
 import com.acmeair.client.FlightClient;
 import com.acmeair.client.responses.CarResponse;
 import com.acmeair.client.responses.CostAndMilesResponse;
-import com.acmeair.client.responses.CustomerMilesResponse;
 import com.acmeair.client.responses.PriceResponse;
 import com.acmeair.service.BookingService;
 import jakarta.enterprise.context.ApplicationScoped;

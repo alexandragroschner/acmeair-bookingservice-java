@@ -16,7 +16,7 @@
 
 package com.acmeair.service;
 
-import com.acmeair.client.responses.CustomerMilesResponse;
+import com.acmeair.web.CustomerMilesResponse;
 import com.mongodb.client.MongoCollection;
 import org.bson.Document;
 import org.json.JSONObject;

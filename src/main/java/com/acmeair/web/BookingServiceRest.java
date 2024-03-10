@@ -305,4 +305,12 @@ public class BookingServiceRest {
         bs.purgeDb();
         return Response.ok("Purged booking database").build();
     }
+
+
+    @GET
+    @Path("/customerreward/{id}")
+    @Produces("application/json")
+    public CustomerMilesResponse getCustomerRewards(@PathParam("id") String customerId) {
+        return bs.getCurrentMilesAndPoints(customerId);
+    }
 }
