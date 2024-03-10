@@ -2,9 +2,7 @@ package com.acmeair.web;
 
 
 import com.acmeair.client.CarClient;
-import com.acmeair.client.CustomerClient;
 import com.acmeair.client.FlightClient;
-import com.acmeair.client.RewardClient;
 import com.acmeair.client.responses.CarResponse;
 import com.acmeair.client.responses.CostAndMilesResponse;
 import com.acmeair.client.responses.CustomerMilesResponse;
@@ -13,6 +11,7 @@ import com.acmeair.service.BookingService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
+import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,20 +22,13 @@ import java.util.logging.Logger;
 @ApplicationScoped
 public class RewardTracker {
 
+    private static final long MINIMUM_CAR_PRICE = 25;
     @Inject
     BookingService bs;
 
     @Inject
     @RestClient
-    private CustomerClient customerClient;
-
-    @Inject
-    @RestClient
     private FlightClient flightClient;
-
-    @Inject
-    @RestClient
-    private RewardClient rewardClient;
 
     @Inject
     @RestClient
@@ -105,23 +97,21 @@ public class RewardTracker {
             costAndMiles.setMiles((costAndMiles.getMiles()) * -1);
         }
 
-        // TODO: implement method to get current miles instead of total miles (without hack)
-        //HACK: pass 0 miles to customerClient.updateCustomerTotalMiles();
-        CustomerMilesResponse currentMilesAndLoyalty = customerClient.updateCustomerTotalMiles(userid, 0L, 0L);
+        CustomerMilesResponse currentMilesAndLoyalty = bs.getCurrentMilesAndPoints(userid);
         logger.warning("Current miles: " + currentMilesAndLoyalty.getMiles());
         logger.warning("Current loyalty: " + currentMilesAndLoyalty.getLoyaltyPoints());
         Long totalFlightMiles = costAndMiles.getMiles() + retCostAndMiles.getMiles();
         Long totalFlightPrice = costAndMiles.getCost() + retCostAndMiles.getCost();
 
         // pass flight miles, current miles and cost to reward service
-        PriceResponse newFlightPrice = rewardClient.getNewPrice(totalFlightMiles.toString(), currentMilesAndLoyalty.getMiles().toString(), totalFlightPrice.toString());
+        PriceResponse newFlightPrice = getNewFlightPrice(totalFlightMiles, currentMilesAndLoyalty.getMiles(), totalFlightPrice);
         updatedPrices.add(newFlightPrice.getPrice());
 
         //get new car price
         Long loyaltyPoints = 0L;
         if (Objects.nonNull(carToBook)) {
-            PriceResponse newCarPrice = rewardClient.getNewCarPrice(carToBook.getLoyaltyPoints().toString(),
-                    currentMilesAndLoyalty.getLoyaltyPoints().toString(), String.valueOf(carToBook.getBaseCost()));
+            PriceResponse newCarPrice = getNewCarPrice(carToBook.getLoyaltyPoints(),
+                    currentMilesAndLoyalty.getLoyaltyPoints(), (long) carToBook.getBaseCost());
 
             logger.warning("new car price is " + newCarPrice.getPrice());
             loyaltyPoints = carToBook.getLoyaltyPoints();
@@ -137,7 +127,7 @@ public class RewardTracker {
         if (!add) {
             loyaltyPoints = loyaltyPoints * -1;
         }
-        CustomerMilesResponse updatedMilesAndLoyalty = customerClient.updateCustomerTotalMiles(userid, totalFlightMiles, loyaltyPoints);
+        CustomerMilesResponse updatedMilesAndLoyalty = bs.updateCustomerMilesAndPoints(userid, totalFlightMiles, loyaltyPoints);
         logger.warning("Updated miles: " + updatedMilesAndLoyalty.getMiles());
         logger.warning("Updated loyalty: " + updatedMilesAndLoyalty.getLoyaltyPoints());
 
@@ -145,4 +135,67 @@ public class RewardTracker {
         customerSuccesses.incrementAndGet();
         return updatedPrices;
     }
+
+    private PriceResponse getNewCarPrice(Long carLoyalty, Long customerLoyalty, Long carBaseCost) {
+        Long pointsToCheck = customerLoyalty + carLoyalty;
+        logger.warning("pointsToCheck: " + pointsToCheck);
+
+        List<Integer> rewardLevels = bs.getCarRewardMapping();
+        // for every id (miles) check if miles of customer are in that status level
+        // if yes, get reductionPercentage for that status
+        int lastId = 0;
+        for (Integer id : rewardLevels) {
+            if (pointsToCheck < id) {
+                // return baseCost multiplied by reductionPercentage
+                return new PriceResponse(adjustCarPrice(id, carBaseCost));
+            }
+            // this happens only when id is not smaller than the miles to check i.e. is the highest id
+            lastId = id;
+        }
+        return new PriceResponse(adjustCarPrice(lastId, carBaseCost));
+    }
+
+    public PriceResponse getNewFlightPrice(Long flightMiles, Long customerMiles, Long baseCost) {
+        Long milesToCheck = customerMiles + flightMiles;
+        logger.warning("milesToCheck: " + milesToCheck);
+
+        List<Integer> intIds = bs.getFlightRewardMapping();
+        // for every id (miles) check if miles of customer are in that status level
+        // if yes, get reductionPercentage for that status
+        int lastId = 0;
+        for (Integer id : intIds) {
+            if (milesToCheck < id) {
+                // return baseCost multiplied by reductionPercentage
+                return new PriceResponse(adjustFlightPrice(id, baseCost));
+            }
+            // this happens only when id is not smaller than the miles to check i.e. is the highest id
+            lastId = id;
+        }
+        return new PriceResponse(adjustFlightPrice(lastId, baseCost));
+    }
+
+    // takes id (miles) and a base price to calculate new price based on status (its mapped priceReduction)
+    private long adjustFlightPrice(Integer miles, Long baseCost) {
+        float reductionPercentage = 0;
+        JSONObject jsonObject = bs.getFlightRewardLevel(miles);
+        reductionPercentage = jsonObject.getFloat("reduction");
+
+        logger.warning("Found reduction for status " + jsonObject.getString("status") + " is " + reductionPercentage + "%.");
+
+        float result = ((100 - reductionPercentage) / 100) * (float) baseCost;
+        return (long) result;
+    }
+
+    // takes id (loyalty points) and a base price to calculate new price based on status (its mapped priceReduction)
+    private long adjustCarPrice(Integer loyaltyPoints, Long baseCost) {
+        long priceReduction = 0;
+        JSONObject jsonObject = bs.getCarRewardLevel(loyaltyPoints);
+        priceReduction = jsonObject.getLong("reduction");
+
+        logger.warning("Found reduction for status " + jsonObject.getString("status") + " is " + priceReduction + "€.");
+
+        long result = baseCost - priceReduction;
+        return Math.max(result, MINIMUM_CAR_PRICE);
+    }
+
 }
