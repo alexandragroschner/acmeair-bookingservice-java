@@ -65,11 +65,11 @@ public class RewardTracker {
     }
 
     //USER ADDED CODE:
-    public List<Long> updateRewardMiles(String userid, String flightId, String retFlightId, boolean add,
+    public PricesWithSessionIdDto updateRewardMiles(String userid, String flightId, String retFlightId, boolean add,
                                         String carName, boolean isOneWay) {
 
         // this will be the response and contain the updated flight price and updated car price (if no car -> null)
-        List<Long> updatedPrices = new ArrayList<>();
+        PricesWithSessionIdDto updatedPrices = new PricesWithSessionIdDto();
 
         // gets miles and cost of chosen flight
         CostAndMilesResponse costAndMiles = flightClient.getCostAndMiles(flightId);
@@ -105,9 +105,7 @@ public class RewardTracker {
             costAndMiles.setMiles((costAndMiles.getMiles()) * -1);
         }
 
-        // TODO: implement method to get current miles instead of total miles (without hack)
-        //HACK: pass 0 miles to customerClient.updateCustomerTotalMiles();
-        CustomerMilesResponse currentMilesAndLoyalty = customerClient.updateCustomerTotalMiles(userid, 0L, 0L);
+        CustomerMilesResponse currentMilesAndLoyalty = customerClient.getCustomerTotalMiles(userid);
         logger.warning("Current miles: " + currentMilesAndLoyalty.getMiles());
         logger.warning("Current loyalty: " + currentMilesAndLoyalty.getLoyaltyPoints());
         Long totalFlightMiles = costAndMiles.getMiles() + retCostAndMiles.getMiles();
@@ -115,7 +113,7 @@ public class RewardTracker {
 
         // pass flight miles, current miles and cost to reward service
         PriceResponse newFlightPrice = rewardClient.getNewPrice(totalFlightMiles.toString(), currentMilesAndLoyalty.getMiles().toString(), totalFlightPrice.toString());
-        updatedPrices.add(newFlightPrice.getPrice());
+        updatedPrices.setFlightPrice(newFlightPrice.getPrice());
 
         //get new car price
         Long loyaltyPoints = 0L;
@@ -125,11 +123,11 @@ public class RewardTracker {
 
             logger.warning("new car price is " + newCarPrice.getPrice());
             loyaltyPoints = carToBook.getLoyaltyPoints();
-            updatedPrices.add(newCarPrice.getPrice());
+            updatedPrices.setCarPrice(newCarPrice.getPrice());
         } else {
             // add 0 as car price if no car is booked
             logger.warning("adding 0 as car price (no car booked)");
-            updatedPrices.add(0L);
+            updatedPrices.setCarPrice(0L);
         }
 
         logger.warning("new flight price is " + newFlightPrice.getPrice());
@@ -140,6 +138,7 @@ public class RewardTracker {
         CustomerMilesResponse updatedMilesAndLoyalty = customerClient.updateCustomerTotalMiles(userid, totalFlightMiles, loyaltyPoints);
         logger.warning("Updated miles: " + updatedMilesAndLoyalty.getMiles());
         logger.warning("Updated loyalty: " + updatedMilesAndLoyalty.getLoyaltyPoints());
+        updatedPrices.setMongoSessionId(updatedMilesAndLoyalty.getMongoSessionId());
 
         // Both calls succeeded!
         customerSuccesses.incrementAndGet();

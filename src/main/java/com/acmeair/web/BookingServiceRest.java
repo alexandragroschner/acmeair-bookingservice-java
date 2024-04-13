@@ -226,7 +226,7 @@ public class BookingServiceRest {
 //        return Response.status(Response.Status.FORBIDDEN).build();
 //      }
 
-            List<Long> newPrices;
+            PricesWithSessionIdDto newPrices;
             String bookingId;
             Long totalPrice;
 
@@ -238,17 +238,17 @@ public class BookingServiceRest {
 
                 if (carBooked) {
                     logger.warning("Booking includes car.");
-                    totalPrice = newPrices.get(0) + newPrices.get(1);
+                    totalPrice = newPrices.getFlightPrice() + newPrices.getCarPrice();
                     bookingId = bs.bookFlightWithCar(userid, toFlightSegId, toFlightId, retFlightId, carName,
                             // totalPrice
                             totalPrice.toString(),
                             // newFlightPrice
-                            newPrices.get(0).toString(),
+                            newPrices.getFlightPrice().toString(),
                             // newCarPrice (0 if no car)
-                            newPrices.get(1).toString());
+                            newPrices.getCarPrice().toString());
                 } else {
                     logger.warning("Booking includes no car.");
-                    bookingId = bs.bookFlight(userid, toFlightSegId, toFlightId, retFlightId, newPrices.get(0).toString());
+                    bookingId = bs.bookFlight(userid, toFlightSegId, toFlightId, retFlightId, newPrices.getFlightPrice().toString());
                 }
                 //one way flight
             } else {
@@ -257,24 +257,24 @@ public class BookingServiceRest {
 
                 if (carBooked) {
                     logger.warning("Booking includes car.");
-                    totalPrice = newPrices.get(0) + newPrices.get(1);
+                    totalPrice = newPrices.getFlightPrice() + newPrices.getCarPrice();
                     bookingId = bs.bookFlightWithCar(userid, toFlightSegId, toFlightId, "NONE - ONE WAY FLIGHT", carName,
                             // totalPrice
                             totalPrice.toString(),
                             // newFlightPrice
-                            newPrices.get(0).toString(),
+                            newPrices.getFlightPrice().toString(),
                             // newCarPrice (0 if no car)
-                            newPrices.get(1).toString());
+                            newPrices.getCarPrice().toString());
                 } else {
                     logger.warning("Booking includes no car.");
-                    bookingId = bs.bookFlight(userid, toFlightSegId, toFlightId, "NONE - ONE WAY FLIGHT", newPrices.get(0).toString());
+                    bookingId = bs.bookFlight(userid, toFlightSegId, toFlightId, "NONE - ONE WAY FLIGHT", newPrices.getFlightPrice().toString());
                 }
             }
 
             String bookingInfo = "{\"oneWay\":\"" + oneWay
-                    + "\",\"price\":\"" + (newPrices.get(0) + newPrices.get(1))
-                    + "\",\"flightPrice\":\"" + newPrices.get(0)
-                    + "\",\"carPrice\":\"" + newPrices.get(1)
+                    + "\",\"price\":\"" + (newPrices.getFlightPrice() + newPrices.getCarPrice())
+                    + "\",\"flightPrice\":\"" + newPrices.getFlightPrice()
+                    + "\",\"carPrice\":\"" + newPrices.getCarPrice()
                     + "\",\"bookingId\":\"" + bookingId
                     + "\",\"carBooked\":\"" + (Objects.nonNull(carName) ? carName : "NONE")
                     + "\"}";
