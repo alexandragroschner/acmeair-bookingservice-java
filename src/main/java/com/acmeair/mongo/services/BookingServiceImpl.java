@@ -18,6 +18,8 @@ package com.acmeair.mongo.services;
 
 import com.acmeair.service.BookingService;
 import com.acmeair.service.KeyGenerator;
+import com.mongodb.MongoClient;
+import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
@@ -30,9 +32,7 @@ import jakarta.inject.Inject;
 import org.bson.Document;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -42,14 +42,15 @@ import static com.mongodb.client.model.Filters.eq;
 public class BookingServiceImpl implements BookingService {
 
   private static final  Logger logger = Logger.getLogger(BookingService.class.getName());
-
   private MongoCollection<Document> bookingCollection;
+  MongoDatabase database;
+  Map<String, ClientSession> sessionMap = new HashMap<>();
+
+  @Inject
+  MongoClient mongoClient;
 
   @Inject
   KeyGenerator keyGenerator;
-
-  @Inject
-  MongoDatabase database;
 
   @Inject
   Tracer tracer;
@@ -63,6 +64,8 @@ public class BookingServiceImpl implements BookingService {
 
   @PostConstruct
   public void initialization() {
+    logger.warning("Mongo Client Options: " + mongoClient.getMongoClientOptions().toString());
+    database = mongoClient.getDatabase("acmeair-bookingdb");
     bookingCollection = database.getCollection("booking");
   }
   
