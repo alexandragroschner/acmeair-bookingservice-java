@@ -1,6 +1,5 @@
 package com.acmeair.web;
 
-
 import com.acmeair.client.CarClient;
 import com.acmeair.client.CustomerClient;
 import com.acmeair.client.FlightClient;
@@ -9,14 +8,13 @@ import com.acmeair.client.responses.CarResponse;
 import com.acmeair.client.responses.CostAndMilesResponse;
 import com.acmeair.client.responses.CustomerMilesResponse;
 import com.acmeair.client.responses.PriceResponse;
-import com.acmeair.service.BookingService;
+import com.acmeair.mongo.MongoSessionCoordinator;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Logger;
 
@@ -24,7 +22,7 @@ import java.util.logging.Logger;
 public class RewardTracker {
 
     @Inject
-    BookingService bs;
+    MongoSessionCoordinator mongoSessionCoordinator;
 
     @Inject
     @RestClient
@@ -66,7 +64,7 @@ public class RewardTracker {
 
     //USER ADDED CODE:
     public PricesWithSessionIdDto updateRewardMiles(String userid, String flightId, String retFlightId, boolean add,
-                                        String carName, boolean isOneWay) {
+                                        String carName, boolean isOneWay, String transactionId) {
 
         // this will be the response and contain the updated flight price and updated car price (if no car -> null)
         PricesWithSessionIdDto updatedPrices = new PricesWithSessionIdDto();
@@ -136,6 +134,14 @@ public class RewardTracker {
             loyaltyPoints = loyaltyPoints * -1;
         }
         CustomerMilesResponse updatedMilesAndLoyalty = customerClient.updateCustomerTotalMiles(userid, totalFlightMiles, loyaltyPoints);
+
+        if (Objects.isNull(updatedMilesAndLoyalty)) {
+            mongoSessionCoordinator.setFailed(transactionId, "customerStatus");
+        } else {
+            mongoSessionCoordinator.setPrepped(transactionId, "customerStatus");
+        }
+
+        updatedMilesAndLoyalty = Optional.ofNullable(updatedMilesAndLoyalty).orElse(new CustomerMilesResponse(0L, 0L, "0"));
         logger.warning("Updated miles: " + updatedMilesAndLoyalty.getMiles());
         logger.warning("Updated loyalty: " + updatedMilesAndLoyalty.getLoyaltyPoints());
         updatedPrices.setMongoSessionId(updatedMilesAndLoyalty.getMongoSessionId());

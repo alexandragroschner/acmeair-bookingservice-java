@@ -39,4 +39,17 @@ public interface BookingService {
 
   String bookFlightWithCar(String customerId, String flightSegmentId, String flightId, String retFlightId,
                            String carName, String totalPrice, String flightPrice, String carPrice);
+
+  //Returns booking ID (ids.get(0)) and mongo session ID (ids.get(1))
+  List<String> bookFlightWithCarPrep(String customerId, String flightSegmentId, String flightId, String retFlightId,
+                                     String carName, String totalPrice, String flightPrice, String carPrice);
+
+  List<String> bookFlightPrep(String customerId, String flightSegmentId, String flightId,
+                              String retFlightId, String price);
+
+  String cancelBookingPrep(String user, String bookingId);
+
+  void commitMongoTransaction(String mongoSessionId);
+
+  void abortMongoTransaction(String mongoSessionId);
 }

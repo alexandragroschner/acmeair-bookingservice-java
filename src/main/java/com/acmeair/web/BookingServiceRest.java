@@ -17,8 +17,10 @@
 package com.acmeair.web;
 
 
-import com.acmeair.client.CarClient;
+import com.acmeair.client.CustomerClient;
+import com.acmeair.mongo.MongoSessionCoordinator;
 import com.acmeair.service.BookingService;
+import com.acmeair.service.KeyGenerator;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -62,7 +64,13 @@ public class BookingServiceRest {
 
     @Inject
     @RestClient
-    private CarClient carClient;
+    private CustomerClient customerClient;
+
+    @Inject
+    private MongoSessionCoordinator mongoSessionCoordinator;
+    @Inject
+    KeyGenerator keyGenerator;
+
 
     private static final JsonReaderFactory factory = Json.createReaderFactory(null);
     private static final Logger logger = Logger.getLogger(BookingServiceRest.class.getName());
@@ -119,11 +127,16 @@ public class BookingServiceRest {
     @RolesAllowed({"user"})
     public Response cancelBookingsByNumber(@FormParam("number") String number,
                                            @FormParam("userid") String userid) {
+        String bookingSessionId;
+        String customerSessionId;
         try {
             // make sure the user isn't trying to bookflights for someone else
             if (!userid.equals(jwt.getSubject())) {
                 return Response.status(Response.Status.FORBIDDEN).build();
             }
+
+            String transactionId = keyGenerator.generate().toString();
+            mongoSessionCoordinator.initTransaction(transactionId);
 
             JsonObject booking;
 
@@ -133,7 +146,12 @@ public class BookingServiceRest {
                 booking = jsonReader.readObject();
                 jsonReader.close();
 
-                bs.cancelBooking(userid, number);
+                bookingSessionId = bs.cancelBookingPrep(userid, number);
+                if (bookingSessionId.isEmpty()) {
+                    mongoSessionCoordinator.setFailed(transactionId, "bookingStatus");
+                } else {
+                    mongoSessionCoordinator.setPrepped(transactionId, "bookingStatus");
+                }
             } catch (RuntimeException npe) {
                 // Booking has already been deleted...
                 return Response.ok("booking " + number + " deleted.").build();
@@ -142,18 +160,42 @@ public class BookingServiceRest {
             boolean isOneWay = booking.getString("retFlightId").equals("NONE - ONE WAY FLIGHT");
             //TODO: check if needs fixing
 
+            PricesWithSessionIdDto obsoletePriceWithId;
             if (booking.getString("carBooked").equalsIgnoreCase("none")) {
-                rewardTracker.updateRewardMiles(userid, booking.getString("flightId"),
-                        booking.getString("retFlightId"), false, null, isOneWay);
+                obsoletePriceWithId = rewardTracker.updateRewardMiles(userid, booking.getString("flightId"),
+                        booking.getString("retFlightId"), false, null, isOneWay, transactionId);
             } else {
-                rewardTracker.updateRewardMiles(userid, booking.getString("flightId"),
-                        booking.getString("retFlightId"), false, booking.getString("carBooked"), isOneWay);
+                obsoletePriceWithId = rewardTracker.updateRewardMiles(userid, booking.getString("flightId"),
+                        booking.getString("retFlightId"), false, booking.getString("carBooked"), isOneWay, transactionId);
             }
 
-            return Response.ok("booking " + number + " deleted.").build();
+            customerSessionId = obsoletePriceWithId.getMongoSessionId();
+            if (sessionsCommitted(transactionId, bookingSessionId, customerSessionId)) {
+                return Response.ok("booking " + number + " deleted.").build();
+            } else {
+                return Response.serverError().build();
+            }
+
         } catch (Exception e) {
             e.printStackTrace();
             return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    private boolean sessionsCommitted(String transactionId, String bookingSessionId, String customerSessionId) {
+        if (mongoSessionCoordinator.allPrepCallsReturnedOk(transactionId)) {
+            logger.warning("will commit stuff now");
+            mongoSessionCoordinator.setCommittedDone(transactionId);
+            bs.commitMongoTransaction(bookingSessionId);
+            customerClient.commitMongo(customerSessionId);
+            return true;
+        } else {
+            // TODO: find solution that actually gets here
+            mongoSessionCoordinator.setDone("true");
+            logger.severe("Not all transaction commits were successful - will be aborted");
+            bs.abortMongoTransaction(bookingSessionId);
+            customerClient.abortMongo(customerSessionId);
+            return false;
         }
     }
 
@@ -226,50 +268,86 @@ public class BookingServiceRest {
 //        return Response.status(Response.Status.FORBIDDEN).build();
 //      }
 
+            String transactionId = keyGenerator.generate().toString();
+            mongoSessionCoordinator.initTransaction(transactionId);
+
+
             PricesWithSessionIdDto newPrices;
+            List<String> bookingAndSessionId;
             String bookingId;
+            String customerSessionId;
+            String bookingSessionId;
             Long totalPrice;
 
             //check if one way flight
             boolean carBooked = Objects.nonNull(carName) && !carName.equals("null") && !carName.trim().isEmpty();
             if (!oneWay) {
                 logger.warning("Booking is not one way.");
-                newPrices = rewardTracker.updateRewardMiles(userid, toFlightId, retFlightId, true, carName, false);
+                newPrices = rewardTracker.updateRewardMiles(userid, toFlightId, retFlightId, true, carName, false, transactionId);
 
                 if (carBooked) {
                     logger.warning("Booking includes car.");
                     totalPrice = newPrices.getFlightPrice() + newPrices.getCarPrice();
-                    bookingId = bs.bookFlightWithCar(userid, toFlightSegId, toFlightId, retFlightId, carName,
+                    bookingAndSessionId = bs.bookFlightWithCarPrep(userid, toFlightSegId, toFlightId, retFlightId, carName,
                             // totalPrice
                             totalPrice.toString(),
                             // newFlightPrice
                             newPrices.getFlightPrice().toString(),
                             // newCarPrice (0 if no car)
                             newPrices.getCarPrice().toString());
+
+                    if (bookingAndSessionId.isEmpty()) {
+                        mongoSessionCoordinator.setFailed(transactionId, "bookingStatus");
+                    } else {
+                        mongoSessionCoordinator.setPrepped(transactionId, "bookingStatus");
+                    }
+
                 } else {
                     logger.warning("Booking includes no car.");
-                    bookingId = bs.bookFlight(userid, toFlightSegId, toFlightId, retFlightId, newPrices.getFlightPrice().toString());
+                    bookingAndSessionId = bs.bookFlightPrep(userid, toFlightSegId, toFlightId, retFlightId, newPrices.getFlightPrice().toString());
+
+                    if (bookingAndSessionId.isEmpty()) {
+                        mongoSessionCoordinator.setFailed(transactionId, "bookingStatus");
+                    } else {
+                        mongoSessionCoordinator.setPrepped(transactionId, "bookingStatus");
+                    }
                 }
                 //one way flight
             } else {
                 logger.warning("Booking is one way.");
-                newPrices = rewardTracker.updateRewardMiles(userid, toFlightId,null, true, carName, true);
+                newPrices = rewardTracker.updateRewardMiles(userid, toFlightId,null, true, carName, true, transactionId);
 
                 if (carBooked) {
                     logger.warning("Booking includes car.");
                     totalPrice = newPrices.getFlightPrice() + newPrices.getCarPrice();
-                    bookingId = bs.bookFlightWithCar(userid, toFlightSegId, toFlightId, "NONE - ONE WAY FLIGHT", carName,
+                    bookingAndSessionId = bs.bookFlightWithCarPrep(userid, toFlightSegId, toFlightId, "NONE - ONE WAY FLIGHT", carName,
                             // totalPrice
                             totalPrice.toString(),
                             // newFlightPrice
                             newPrices.getFlightPrice().toString(),
                             // newCarPrice (0 if no car)
                             newPrices.getCarPrice().toString());
+
+                    if (bookingAndSessionId.isEmpty()) {
+                        mongoSessionCoordinator.setFailed(transactionId, "bookingStatus");
+                    } else {
+                        mongoSessionCoordinator.setPrepped(transactionId, "bookingStatus");
+                    }
                 } else {
                     logger.warning("Booking includes no car.");
-                    bookingId = bs.bookFlight(userid, toFlightSegId, toFlightId, "NONE - ONE WAY FLIGHT", newPrices.getFlightPrice().toString());
+                    bookingAndSessionId = bs.bookFlightPrep(userid, toFlightSegId, toFlightId, "NONE - ONE WAY FLIGHT", newPrices.getFlightPrice().toString());
+
+                    if (bookingAndSessionId.isEmpty()) {
+                        mongoSessionCoordinator.setFailed(transactionId, "bookingStatus");
+                    } else {
+                        mongoSessionCoordinator.setPrepped(transactionId, "bookingStatus");
+                    }
                 }
             }
+
+            customerSessionId = newPrices.getMongoSessionId();
+            bookingSessionId = bookingAndSessionId.get(1);
+            bookingId = bookingAndSessionId.get(0);
 
             String bookingInfo = "{\"oneWay\":\"" + oneWay
                     + "\",\"price\":\"" + (newPrices.getFlightPrice() + newPrices.getCarPrice())
@@ -279,7 +357,12 @@ public class BookingServiceRest {
                     + "\",\"carBooked\":\"" + (Objects.nonNull(carName) ? carName : "NONE")
                     + "\"}";
 
-            return Response.ok(bookingInfo).build();
+            if (sessionsCommitted(transactionId, bookingSessionId, customerSessionId)) {
+                return Response.ok(bookingInfo).build();
+            } else {
+                return Response.serverError().build();
+            }
+
         } catch (Exception e) {
             e.printStackTrace();
             return Response.status(Status.INTERNAL_SERVER_ERROR).build();
