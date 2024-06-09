@@ -56,6 +56,8 @@ public interface BookingService {
 
   CustomerMilesResponse updateCustomerMilesAndPoints(String customerId, Long miles, Long loyaltyPoints);
 
+  CustomerMilesResponse updateCustomerMilesAndPointsPrep(String customerId, Long miles, Long loyaltyPoints);
+
   List<Integer> getCarRewardMapping();
 
   List<Integer> getFlightRewardMapping();
@@ -63,4 +65,8 @@ public interface BookingService {
   JSONObject getFlightRewardLevel(Integer id);
 
   JSONObject getCarRewardLevel(Integer id);
+
+  void commitMongoTransaction(String mongoSessionId);
+
+  void abortMongoTransaction(String mongoSessionId);
 }

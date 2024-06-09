@@ -18,7 +18,9 @@ package com.acmeair.web;
 
 
 import com.acmeair.client.CarClient;
+import com.acmeair.mongo.MongoSessionCoordinator;
 import com.acmeair.service.BookingService;
+import com.acmeair.service.KeyGenerator;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -63,6 +65,12 @@ public class BookingServiceRest {
     @Inject
     @RestClient
     private CarClient carClient;
+
+    @Inject
+    private MongoSessionCoordinator mongoSessionCoordinator;
+    @Inject
+    KeyGenerator keyGenerator;
+
 
     private static final JsonReaderFactory factory = Json.createReaderFactory(null);
     private static final Logger logger = Logger.getLogger(BookingServiceRest.class.getName());
@@ -125,6 +133,9 @@ public class BookingServiceRest {
                 return Response.status(Response.Status.FORBIDDEN).build();
             }
 
+            String transactionId = keyGenerator.generate().toString();
+            mongoSessionCoordinator.initTransaction(transactionId);
+
             JsonObject booking;
 
             try {
@@ -144,10 +155,10 @@ public class BookingServiceRest {
 
             if (booking.getString("carBooked").equalsIgnoreCase("none")) {
                 rewardTracker.updateRewardMiles(userid, booking.getString("flightId"),
-                        booking.getString("retFlightId"), false, null, isOneWay);
+                        booking.getString("retFlightId"), false, null, isOneWay, transactionId);
             } else {
                 rewardTracker.updateRewardMiles(userid, booking.getString("flightId"),
-                        booking.getString("retFlightId"), false, booking.getString("carBooked"), isOneWay);
+                        booking.getString("retFlightId"), false, booking.getString("carBooked"), isOneWay, transactionId);
             }
 
             return Response.ok("booking " + number + " deleted.").build();
@@ -226,55 +237,58 @@ public class BookingServiceRest {
 //        return Response.status(Response.Status.FORBIDDEN).build();
 //      }
 
-            List<Long> newPrices;
+            PricesWithSessionIdDto newPrices;
             String bookingId;
             Long totalPrice;
+
+            String transactionId = keyGenerator.generate().toString();
+            mongoSessionCoordinator.initTransaction(transactionId);
 
             //check if one way flight
             boolean carBooked = Objects.nonNull(carName) && !carName.equals("null") && !carName.trim().isEmpty();
             if (!oneWay) {
                 logger.warning("Booking is not one way.");
-                newPrices = rewardTracker.updateRewardMiles(userid, toFlightId, retFlightId, true, carName, false);
+                newPrices = rewardTracker.updateRewardMiles (userid, toFlightId, retFlightId, true, carName, false, transactionId);
 
                 if (carBooked) {
                     logger.warning("Booking includes car.");
-                    totalPrice = newPrices.get(0) + newPrices.get(1);
+                    totalPrice = newPrices.getFlightPrice() + newPrices.getCarPrice();
                     bookingId = bs.bookFlightWithCar(userid, toFlightSegId, toFlightId, retFlightId, carName,
                             // totalPrice
                             totalPrice.toString(),
                             // newFlightPrice
-                            newPrices.get(0).toString(),
+                            newPrices.getFlightPrice().toString(),
                             // newCarPrice (0 if no car)
-                            newPrices.get(1).toString());
+                            newPrices.getCarPrice().toString());
                 } else {
                     logger.warning("Booking includes no car.");
-                    bookingId = bs.bookFlight(userid, toFlightSegId, toFlightId, retFlightId, newPrices.get(0).toString());
+                    bookingId = bs.bookFlight(userid, toFlightSegId, toFlightId, retFlightId, newPrices.getFlightPrice().toString());
                 }
                 //one way flight
             } else {
                 logger.warning("Booking is one way.");
-                newPrices = rewardTracker.updateRewardMiles(userid, toFlightId,null, true, carName, true);
+                newPrices = rewardTracker.updateRewardMiles(userid, toFlightId,null, true, carName, true, transactionId);
 
                 if (carBooked) {
                     logger.warning("Booking includes car.");
-                    totalPrice = newPrices.get(0) + newPrices.get(1);
+                    totalPrice = newPrices.getFlightPrice() + newPrices.getCarPrice();
                     bookingId = bs.bookFlightWithCar(userid, toFlightSegId, toFlightId, "NONE - ONE WAY FLIGHT", carName,
                             // totalPrice
                             totalPrice.toString(),
                             // newFlightPrice
-                            newPrices.get(0).toString(),
+                            newPrices.getFlightPrice().toString(),
                             // newCarPrice (0 if no car)
-                            newPrices.get(1).toString());
+                            newPrices.getCarPrice().toString());
                 } else {
                     logger.warning("Booking includes no car.");
-                    bookingId = bs.bookFlight(userid, toFlightSegId, toFlightId, "NONE - ONE WAY FLIGHT", newPrices.get(0).toString());
+                    bookingId = bs.bookFlight(userid, toFlightSegId, toFlightId, "NONE - ONE WAY FLIGHT", newPrices.getFlightPrice().toString());
                 }
             }
 
             String bookingInfo = "{\"oneWay\":\"" + oneWay
-                    + "\",\"price\":\"" + (newPrices.get(0) + newPrices.get(1))
-                    + "\",\"flightPrice\":\"" + newPrices.get(0)
-                    + "\",\"carPrice\":\"" + newPrices.get(1)
+                    + "\",\"price\":\"" + (newPrices.getFlightPrice() + newPrices.getCarPrice())
+                    + "\",\"flightPrice\":\"" + newPrices.getFlightPrice()
+                    + "\",\"carPrice\":\"" + newPrices.getCarPrice()
                     + "\",\"bookingId\":\"" + bookingId
                     + "\",\"carBooked\":\"" + (Objects.nonNull(carName) ? carName : "NONE")
                     + "\"}";

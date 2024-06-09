@@ -19,6 +19,8 @@ package com.acmeair.mongo.services;
 import com.acmeair.web.CustomerMilesResponse;
 import com.acmeair.service.BookingService;
 import com.acmeair.service.KeyGenerator;
+import com.mongodb.MongoClient;
+import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
@@ -55,12 +57,14 @@ public class BookingServiceImpl implements BookingService {
   private MongoCollection<Document> rewardFlightCollection;
   private MongoCollection<Document> rewardCarCollection;
   private MongoCollection<Document> customerRewardData;
+  MongoDatabase database;
+  Map<String, ClientSession> sessionMap = new HashMap<>();
+
+  @Inject
+  MongoClient mongoClient;
 
   @Inject
   KeyGenerator keyGenerator;
-
-  @Inject
-  MongoDatabase database;
 
   @Inject
   Tracer tracer;
@@ -75,6 +79,7 @@ public class BookingServiceImpl implements BookingService {
   @PostConstruct
   public void initialization() {
     logger.warning("Initializing BookingServiceImpl. Getting collections...");
+    database = mongoClient.getDatabase("acmeair-bookingdb");
     bookingCollection = database.getCollection("booking");
     rewardFlightCollection = database.getCollection("rewardFlight");
     rewardCarCollection = database.getCollection("rewardCar");
@@ -366,6 +371,44 @@ public class BookingServiceImpl implements BookingService {
   }
 
   @Override
+  public CustomerMilesResponse updateCustomerMilesAndPointsPrep(String customerId, Long miles, Long loyaltyPoints) {
+    Document doc = customerRewardData.find(eq("_id", customerId)).first();
+
+    CustomerMilesResponse updatedMilesAndPoints = new CustomerMilesResponse(0L, 0L);
+    // if customer does not exist, create customer with 0
+    if (Objects.isNull(doc)) {
+      logger.warning("Reward data for customer " + customerId + " does not exist - Inserting now...");
+
+      Document customerRewardDataEntry = new Document("_id", customerId)
+              .append("miles", miles.toString())
+              .append("loyaltyPoints", loyaltyPoints.toString());
+
+      updatedMilesAndPoints.setMiles(miles);
+      updatedMilesAndPoints.setLoyaltyPoints(loyaltyPoints);
+
+      customerRewardData.insertOne(customerRewardDataEntry);
+    } else {
+      logger.warning("Existing data for user found in customerRewardData");
+      JSONObject jsonObject = new JSONObject(doc.toJson());
+
+      updatedMilesAndPoints.setMiles(jsonObject.getLong("miles") + miles);
+      updatedMilesAndPoints.setLoyaltyPoints(jsonObject.getLong("loyaltyPoints") + loyaltyPoints);
+
+      final ClientSession clientSession = mongoClient.startSession();
+      String sessionId = keyGenerator.generate().toString();
+      clientSession.startTransaction();
+
+      customerRewardData.updateOne(clientSession,
+              eq("_id", customerId),
+              combine(set("miles", updatedMilesAndPoints.getMiles().toString()),
+                      set("loyaltyPoints", updatedMilesAndPoints.getLoyaltyPoints().toString())));
+      sessionMap.put(sessionId, clientSession);
+      updatedMilesAndPoints.setMongoSessionId(sessionId);
+    }
+    return updatedMilesAndPoints;
+  }
+
+  @Override
   public List<Integer> getCarRewardMapping() {
     // from https://stackoverflow.com/a/42696322
     List<String> ids = StreamSupport.stream(rewardCarCollection.distinct("_id", String.class).spliterator(),
@@ -416,5 +459,21 @@ public class BookingServiceImpl implements BookingService {
       logger.warning("Did not find carRewardMapping for " + id);
       throw new RuntimeException();
     }
+  }
+
+  @Override
+  public void commitMongoTransaction(String mongoSessionId) {
+    final ClientSession session = sessionMap.get(mongoSessionId);
+    session.commitTransaction();
+    session.close();
+    sessionMap.remove(mongoSessionId);
+  }
+
+  @Override
+  public void abortMongoTransaction(String mongoSessionId) {
+    final ClientSession session = sessionMap.get(mongoSessionId);
+    session.abortTransaction();
+    session.close();
+    sessionMap.remove(mongoSessionId);
   }
 }

@@ -6,6 +6,7 @@ import com.acmeair.client.FlightClient;
 import com.acmeair.client.responses.CarResponse;
 import com.acmeair.client.responses.CostAndMilesResponse;
 import com.acmeair.client.responses.PriceResponse;
+import com.acmeair.mongo.MongoSessionCoordinator;
 import com.acmeair.service.BookingService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -15,6 +16,7 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Logger;
 
@@ -24,6 +26,9 @@ public class RewardTracker {
     private static final long MINIMUM_CAR_PRICE = 25;
     @Inject
     BookingService bs;
+
+    @Inject
+    MongoSessionCoordinator mongoSessionCoordinator;
 
     @Inject
     @RestClient
@@ -56,11 +61,11 @@ public class RewardTracker {
     }
 
     //USER ADDED CODE:
-    public List<Long> updateRewardMiles(String userid, String flightId, String retFlightId, boolean add,
-                                        String carName, boolean isOneWay) {
+    public PricesWithSessionIdDto updateRewardMiles(String userid, String flightId, String retFlightId, boolean add,
+                                        String carName, boolean isOneWay, String transactionId) {
 
         // this will be the response and contain the updated flight price and updated car price (if no car -> null)
-        List<Long> updatedPrices = new ArrayList<>();
+        PricesWithSessionIdDto updatedPrices = new PricesWithSessionIdDto();
 
         // gets miles and cost of chosen flight
         CostAndMilesResponse costAndMiles = flightClient.getCostAndMiles(flightId);
@@ -104,7 +109,7 @@ public class RewardTracker {
 
         // pass flight miles, current miles and cost to reward service
         PriceResponse newFlightPrice = getNewFlightPrice(totalFlightMiles, currentMilesAndLoyalty.getMiles(), totalFlightPrice);
-        updatedPrices.add(newFlightPrice.getPrice());
+        updatedPrices.setFlightPrice(newFlightPrice.getPrice());
 
         //get new car price
         Long loyaltyPoints = 0L;
@@ -114,11 +119,11 @@ public class RewardTracker {
 
             logger.warning("new car price is " + newCarPrice.getPrice());
             loyaltyPoints = carToBook.getLoyaltyPoints();
-            updatedPrices.add(newCarPrice.getPrice());
+            updatedPrices.setCarPrice(newCarPrice.getPrice());
         } else {
             // add 0 as car price if no car is booked
             logger.warning("adding 0 as car price (no car booked)");
-            updatedPrices.add(0L);
+            updatedPrices.setCarPrice(0L);
         }
 
         logger.warning("new flight price is " + newFlightPrice.getPrice());
@@ -126,12 +131,23 @@ public class RewardTracker {
         if (!add) {
             loyaltyPoints = loyaltyPoints * -1;
         }
-        CustomerMilesResponse updatedMilesAndLoyalty = bs.updateCustomerMilesAndPoints(userid, totalFlightMiles, loyaltyPoints);
+        //TODO: add 2pc logic: replace with prep call and return mongoSessionId ++
+        CustomerMilesResponse updatedMilesAndLoyalty = bs.updateCustomerMilesAndPointsPrep(userid, totalFlightMiles, loyaltyPoints);
+        if (Objects.isNull(updatedMilesAndLoyalty)) {
+            mongoSessionCoordinator.setFailed(transactionId, "customerStatus");
+        } else {
+            mongoSessionCoordinator.setPrepped(transactionId, "customerStatus");
+        }
+
+        updatedMilesAndLoyalty = Optional.ofNullable(updatedMilesAndLoyalty).orElse(new CustomerMilesResponse(0L, 0L, "0"));
         logger.warning("Updated miles: " + updatedMilesAndLoyalty.getMiles());
         logger.warning("Updated loyalty: " + updatedMilesAndLoyalty.getLoyaltyPoints());
+        updatedPrices.setMongoSessionId(updatedMilesAndLoyalty.getMongoSessionId());
 
         // Both calls succeeded!
         customerSuccesses.incrementAndGet();
+
+        //TODO return mongoSessionId: updatedMilesAndLoyalty.getMongoSessionId() ++
         return updatedPrices;
     }
 
@@ -151,6 +167,7 @@ public class RewardTracker {
             // this happens only when id is not smaller than the miles to check i.e. is the highest id
             lastId = id;
         }
+
         return new PriceResponse(adjustCarPrice(lastId, carBaseCost));
     }
 

@@ -4,6 +4,8 @@ public class CustomerMilesResponse {
 
     private Long miles;
     private Long loyaltyPoints;
+    private String mongoSessionId;
+
 
     public CustomerMilesResponse() {
     }
@@ -11,6 +13,12 @@ public class CustomerMilesResponse {
     public CustomerMilesResponse(Long miles, Long loyaltyPoints) {
         this.setMiles(miles);
         this.setLoyaltyPoints(loyaltyPoints);
+    }
+
+    public CustomerMilesResponse(Long miles, Long loyaltyPoints, String mongoSessionId) {
+        this.setMiles(miles);
+        this.setLoyaltyPoints(loyaltyPoints);
+        this.setMongoSessionId(mongoSessionId);
     }
 
     public Long getMiles() {
@@ -27,6 +35,13 @@ public class CustomerMilesResponse {
 
     public void setLoyaltyPoints(Long loyaltyPoints) {
         this.loyaltyPoints = loyaltyPoints;
+    }
 
+    public String getMongoSessionId() {
+        return mongoSessionId;
+    }
+
+    public void setMongoSessionId(String mongoSessionId) {
+        this.mongoSessionId = mongoSessionId;
     }
 }
