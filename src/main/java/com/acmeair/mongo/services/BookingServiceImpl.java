@@ -104,7 +104,9 @@ public class BookingServiceImpl implements BookingService {
           .append("carPrice", 0)
           .append("totalPrice", price);
 
+      /* REMOVED DB CALL
         bookingCollection.insertOne(bookingDoc);
+       */
 
       return bookingId;
     } catch (Exception e) {
@@ -139,10 +141,14 @@ public class BookingServiceImpl implements BookingService {
             .startSpan();
 
           childSpan.setAttribute("Created", true);
+          /* REMOVED DB CALL
           bookingCollection.insertOne(bookingDoc);
+           */
           childSpan.end();
         } else {
+          /* REMOVED DB CALL
           bookingCollection.insertOne(bookingDoc);
+           */
         }
 
         return bookingId;
@@ -156,7 +162,21 @@ public class BookingServiceImpl implements BookingService {
   @Override
   public String getBooking(String user, String bookingId) {
     try {
+      /* REMOVED DB CALL
       return bookingCollection.find(eq("_id", bookingId)).first().toJson();
+       */
+      // ADDED HARD-CODED BOOKING
+      Document bookingDoc = new Document("_id", bookingId)
+              .append("customerId", "uid0@email.com")
+              .append("flightId", "cad686d7-a1d3-4666-a6bd-33612cdee146")
+              .append("retFlightId", "cad686d7-a1d3-4666-a6bd-33612cdee146")
+              .append("carBooked", "NONE")
+              .append("dateOfBooking", new Date())
+              .append("flightPrice", 280)
+              .append("carPrice", 0)
+              .append("totalPrice", 280);
+
+      return bookingDoc.toJson();
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -168,6 +188,21 @@ public class BookingServiceImpl implements BookingService {
     if (logger.isLoggable(Level.FINE)) {
       logger.fine("getBookingsByUser : " + user);
     }
+
+    // ADDED HARD-CODED BOOKING
+    Document bookingDoc = new Document("_id", "1531fd5c-6b7d-43df-8b29-55b39edc53f1")
+            .append("customerId", "uid0@email.com")
+            .append("flightId", "fe47d42c-a85c-4917-afc2-a3a1452fe10b")
+            .append("retFlightId", "2bb491fd-4580-47c1-923e-36a2ca8371f4")
+            .append("carBooked", "NONE")
+            .append("dateOfBooking", new Date())
+            .append("flightPrice", "320")
+            .append("carPrice", "0")
+            .append("totalPrice", "320");
+
+    bookings.add(bookingDoc.toJson());
+
+    /* REMOVED DB CALL
     try (MongoCursor<Document> cursor = bookingCollection.find(eq("customerId", user)).iterator()) {
 
       while (cursor.hasNext()) {
@@ -184,6 +219,7 @@ public class BookingServiceImpl implements BookingService {
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
+     */
     return bookings;
   }
 
@@ -192,21 +228,28 @@ public class BookingServiceImpl implements BookingService {
     if (logger.isLoggable(Level.FINE)) {
       logger.fine("cancelBooking _id : " + bookingId);
     }
+    /* REMOVED DB CALL
     try {
       bookingCollection.deleteMany(eq("_id", bookingId));
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
+     */
   }
 
   @Override
   public Long count() {
+    /* REMOVED DB CALL
     return bookingCollection.countDocuments();
+     */
+    return 1L;
   }
 
   @Override
   public void dropBookings() {
+    /* REMOVED DB CALL
     bookingCollection.deleteMany(new Document());
+     */
   }
 
   @Override
@@ -216,7 +259,10 @@ public class BookingServiceImpl implements BookingService {
   
   @Override
   public boolean isConnected() {
+    /* REMOVED DB CALL
     return (bookingCollection.countDocuments() >= 0);
+     */
+    return true;
   }
 
   //USER ADDED CODE
@@ -243,10 +289,14 @@ public class BookingServiceImpl implements BookingService {
                 .startSpan();
 
         childSpan.setAttribute("Created", true);
+        /* REMOVED DB CALL
         bookingCollection.insertOne(bookingDoc);
+         */
         childSpan.end();
       } else {
+        /* REMOVED DB CALL
         bookingCollection.insertOne(bookingDoc);
+         */
       }
 
       return bookingId;
@@ -312,18 +362,25 @@ public class BookingServiceImpl implements BookingService {
   @Override
   public CustomerMilesResponse getCurrentMilesAndPoints(String customerId) {
 
+    /* REMOVED DB CALL
     Document doc = customerRewardData.find(eq("_id", customerId)).first();
+     */
+
+    // ADDED HARD-CODED DOC
+    Document doc = new Document();
 
     CustomerMilesResponse currentMilesAndPoints = new CustomerMilesResponse(0L, 0L);
     // if customer does not exist, create customer with 0
-    if (Objects.isNull(doc)) {
+    if (Objects.isNull(null)) {
       logger.warning("Reward data for customer " + customerId + " does not exist - Inserting now...");
 
       Document customerRewardDataTest = new Document("_id", customerId)
               .append("miles", "0")
               .append("loyaltyPoints", "0");
 
+      /* REMOVED DB CALL
       customerRewardData.insertOne(customerRewardDataTest);
+       */
     } else {
       logger.warning("Existing data for user found in customerRewardData");
       JSONObject jsonObject = new JSONObject(doc.toJson());
@@ -336,11 +393,16 @@ public class BookingServiceImpl implements BookingService {
 
   @Override
   public CustomerMilesResponse updateCustomerMilesAndPoints(String customerId, Long miles, Long loyaltyPoints) {
+    /* REMOVED DB CALL
     Document doc = customerRewardData.find(eq("_id", customerId)).first();
+     */
+
+    // ADDED HARD-CODED DOC
+    Document doc = new Document();
 
     CustomerMilesResponse updatedMilesAndPoints = new CustomerMilesResponse(0L, 0L);
     // if customer does not exist, create customer with 0
-    if (Objects.isNull(doc)) {
+    if (Objects.isNull(null)) {
       logger.warning("Reward data for customer " + customerId + " does not exist - Inserting now...");
 
       Document customerRewardDataEntry = new Document("_id", customerId)
@@ -350,7 +412,9 @@ public class BookingServiceImpl implements BookingService {
       updatedMilesAndPoints.setMiles(miles);
       updatedMilesAndPoints.setLoyaltyPoints(loyaltyPoints);
 
+      /* REMOVED DB CALL
       customerRewardData.insertOne(customerRewardDataEntry);
+       */
     } else {
       logger.warning("Existing data for user found in customerRewardData");
       JSONObject jsonObject = new JSONObject(doc.toJson());
@@ -358,18 +422,29 @@ public class BookingServiceImpl implements BookingService {
       updatedMilesAndPoints.setMiles(jsonObject.getLong("miles") + miles);
       updatedMilesAndPoints.setLoyaltyPoints(jsonObject.getLong("loyaltyPoints") + loyaltyPoints);
 
+      /* REMOVED DB CALL
       customerRewardData.updateOne(eq("_id", customerId),
               combine(set("miles", updatedMilesAndPoints.getMiles().toString()),
                       set("loyaltyPoints", updatedMilesAndPoints.getLoyaltyPoints().toString())));
+       */
     }
     return updatedMilesAndPoints;
   }
 
   @Override
   public List<Integer> getCarRewardMapping() {
+    /* REMOVED DB CALL
     // from https://stackoverflow.com/a/42696322
     List<String> ids = StreamSupport.stream(rewardCarCollection.distinct("_id", String.class).spliterator(),
             false).collect(Collectors.toList());
+     */
+
+    // ADDED HARD-CODED IDS
+    List<String> ids = new ArrayList<>();
+    ids.add("150");
+    ids.add("600");
+    ids.add("900");
+    ids.add("1200");
 
     logger.warning("Got all ids of car rewards");
 
@@ -378,9 +453,18 @@ public class BookingServiceImpl implements BookingService {
 
   @Override
   public List<Integer> getFlightRewardMapping() {
+    /* REMOVED DB CALL
     // from https://stackoverflow.com/a/42696322
     List<String> ids = StreamSupport.stream(rewardFlightCollection.distinct("_id", String.class).spliterator(),
             false).collect(Collectors.toList());
+     */
+
+    // ADDED HARD-CODED IDS
+    List<String> ids = new ArrayList<>();
+    ids.add("700");
+    ids.add("1400");
+    ids.add("3500");
+    ids.add("8000");
 
     logger.warning("Got all ids of flight rewards");
 
@@ -401,7 +485,16 @@ public class BookingServiceImpl implements BookingService {
   @Override
   public JSONObject getFlightRewardLevel(Integer id) {
     try {
+      /* REMOVED DB CALL
       return new JSONObject(rewardFlightCollection.find(eq("_id", id.toString())).first().toJson());
+       */
+      // ADDED HARD-CODED REWARD MAPPING
+      Document flightRewardMappingDoc = new Document("_id", id)
+              .append("status", "peasant")
+              .append("reduction", "0");
+
+      return new JSONObject(flightRewardMappingDoc);
+
     } catch (NullPointerException e) {
       logger.warning("Did not find flightRewardMapping for " + id);
       throw new RuntimeException();
@@ -411,7 +504,14 @@ public class BookingServiceImpl implements BookingService {
   @Override
   public JSONObject getCarRewardLevel(Integer id) {
     try {
+      /* REMOVED DB CALL
       return new JSONObject(rewardCarCollection.find(eq("_id", id.toString())).first().toJson());
+       */
+      // ADDED HARD-CODED REWARD MAPPING
+      Document carRewardMappingDoc = new Document("_id", id)
+              .append("status", "walker")
+              .append("reduction", "0");
+      return new JSONObject(carRewardMappingDoc);
     } catch (NullPointerException e) {
       logger.warning("Did not find carRewardMapping for " + id);
       throw new RuntimeException();
