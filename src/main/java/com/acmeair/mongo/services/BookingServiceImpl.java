@@ -16,9 +16,9 @@
 
 package com.acmeair.mongo.services;
 
-import com.acmeair.web.CustomerMilesResponse;
 import com.acmeair.service.BookingService;
 import com.acmeair.service.KeyGenerator;
+import com.acmeair.web.CustomerMilesResponse;
 import com.mongodb.MongoClient;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoCollection;
@@ -159,6 +159,38 @@ public class BookingServiceImpl implements BookingService {
   }
 
   @Override
+  public List<String> bookFlightPrep(String customerId, String flightSegmentId, String flightId,
+                                     String retFlightId, String price) {
+    List<String> ids = new ArrayList<>();
+    try {
+      String bookingId = keyGenerator.generate().toString();
+      ids.add(bookingId);
+
+      final ClientSession clientSession = mongoClient.startSession();
+      String sessionId = keyGenerator.generate().toString();
+      ids.add(sessionId);
+
+      clientSession.startTransaction();
+      Document bookingDoc = new Document("_id", bookingId)
+              .append("customerId", customerId)
+              .append("flightId", flightId)
+              .append("retFlightId", retFlightId)
+              .append("carBooked", "NONE")
+              .append("dateOfBooking", new Date())
+              .append("flightPrice", price)
+              .append("carPrice", "0")
+              .append("totalPrice", price);
+
+      bookingCollection.insertOne(clientSession, bookingDoc);
+      sessionMap.put(sessionId, clientSession);
+
+      return ids;
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Override
   public String getBooking(String user, String bookingId) {
     try {
       return bookingCollection.find(eq("_id", bookingId)).first().toJson();
@@ -199,6 +231,25 @@ public class BookingServiceImpl implements BookingService {
     }
     try {
       bookingCollection.deleteMany(eq("_id", bookingId));
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Override
+  public String cancelBookingPrep(String user, String bookingId) {
+    if (logger.isLoggable(Level.FINE)) {
+      logger.fine("cancelBooking _id : " + bookingId);
+    }
+    try {
+      final ClientSession clientSession = mongoClient.startSession();
+      String sessionId = keyGenerator.generate().toString();
+
+      clientSession.startTransaction();
+      bookingCollection.deleteMany(clientSession, eq("_id", bookingId));
+      sessionMap.put(sessionId, clientSession);
+
+      return sessionId;
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -259,6 +310,106 @@ public class BookingServiceImpl implements BookingService {
       throw new RuntimeException(e);
     }
 
+  }
+
+  //Returns booking ID (ids.get(0)) and mongo session ID (ids.get(1))
+  @Override
+  public List<String> bookFlightWithCarPrep(String customerId, String flightSegmentId, String flightId, String retFlightId,
+                                            String carName, String totalPrice, String flightPrice, String carPrice) {
+    List<String> ids = new ArrayList<>();
+    try {
+      String bookingId = keyGenerator.generate().toString();
+      ids.add(bookingId);
+
+      final ClientSession clientSession = mongoClient.startSession();
+      String sessionId = keyGenerator.generate().toString();
+      ids.add(sessionId);
+
+      clientSession.startTransaction();
+      Document bookingDoc = new Document("_id", bookingId)
+              .append("customerId", customerId)
+              .append("flightId", flightId)
+              .append("retFlightId", retFlightId)
+              .append("carBooked", carName)
+              .append("dateOfBooking", new Date())
+              .append("flightPrice", flightPrice)
+              .append("carPrice", carPrice)
+              .append("totalPrice", totalPrice);
+
+      bookingCollection.insertOne(clientSession, bookingDoc);
+      sessionMap.put(sessionId, clientSession);
+
+      return ids;
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+
+  }
+
+  //Returns booking ID (ids.get(0)) and mongo session ID (ids.get(1))
+  @Override
+  public String bookFlightWithCarPrepWithId(String customerId, String flightSegmentId, String flightId, String retFlightId,
+                                            String carName, String totalPrice, String flightPrice, String carPrice, String mongoSessionId) {
+    String bookingId = keyGenerator.generate().toString();
+    try {
+
+      final ClientSession clientSession = sessionMap.get(mongoSessionId);
+      Document bookingDoc = new Document("_id", bookingId)
+              .append("customerId", customerId)
+              .append("flightId", flightId)
+              .append("retFlightId", retFlightId)
+              .append("carBooked", carName)
+              .append("dateOfBooking", new Date())
+              .append("flightPrice", flightPrice)
+              .append("carPrice", carPrice)
+              .append("totalPrice", totalPrice);
+
+      bookingCollection.insertOne(clientSession, bookingDoc);
+
+      return bookingId;
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+
+  }
+
+  @Override
+  public String bookFlightPrepWithId(String customerId, String flightSegmentId, String flightId,
+                                     String retFlightId, String price, String mongoSessionId) {
+    String bookingId = keyGenerator.generate().toString();
+    try {
+      final ClientSession clientSession = sessionMap.get(mongoSessionId);
+      Document bookingDoc = new Document("_id", bookingId)
+              .append("customerId", customerId)
+              .append("flightId", flightId)
+              .append("retFlightId", retFlightId)
+              .append("carBooked", "NONE")
+              .append("dateOfBooking", new Date())
+              .append("flightPrice", price)
+              .append("carPrice", "0")
+              .append("totalPrice", price);
+
+      bookingCollection.insertOne(clientSession, bookingDoc);
+
+      return bookingId;
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Override
+  public boolean cancelBookingPrepWithId(String user, String bookingId, String mongoSessionId) {
+    if (logger.isLoggable(Level.FINE)) {
+      logger.fine("cancelBooking _id : " + bookingId);
+    }
+    try {
+      final ClientSession clientSession = sessionMap.get(mongoSessionId);
+      bookingCollection.deleteMany(clientSession, eq("_id", bookingId));
+
+      return true;
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override

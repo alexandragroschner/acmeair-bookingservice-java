@@ -131,7 +131,6 @@ public class RewardTracker {
         if (!add) {
             loyaltyPoints = loyaltyPoints * -1;
         }
-        //TODO: add 2pc logic: replace with prep call and return mongoSessionId ++
         CustomerMilesResponse updatedMilesAndLoyalty = bs.updateCustomerMilesAndPointsPrep(userid, totalFlightMiles, loyaltyPoints);
         if (Objects.isNull(updatedMilesAndLoyalty)) {
             mongoSessionCoordinator.setFailed(transactionId, "customerStatus");
@@ -147,7 +146,6 @@ public class RewardTracker {
         // Both calls succeeded!
         customerSuccesses.incrementAndGet();
 
-        //TODO return mongoSessionId: updatedMilesAndLoyalty.getMongoSessionId() ++
         return updatedPrices;
     }
 

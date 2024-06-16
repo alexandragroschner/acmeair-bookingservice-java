@@ -29,11 +29,16 @@ public interface BookingService {
   String bookFlight(String customerId, String flightSegmentId, String flightId,
                     String retFlightId, String price);
 
+  List<String> bookFlightPrep(String customerId, String flightSegmentId, String flightId,
+                              String retFlightId, String price);
+
   String getBooking(String user, String id);
 
   List<String> getBookingsByUser(String user);
 
   void cancelBooking(String user, String id);
+
+  String cancelBookingPrep(String user, String bookingId);
 
   Long count();
 
@@ -45,6 +50,19 @@ public interface BookingService {
 
   String bookFlightWithCar(String customerId, String flightSegmentId, String flightId, String retFlightId,
                            String carName, String totalPrice, String flightPrice, String carPrice);
+
+    //Returns booking ID (ids.get(0)) and mongo session ID (ids.get(1))
+  List<String> bookFlightWithCarPrep(String customerId, String flightSegmentId, String flightId, String retFlightId,
+                                     String carName, String totalPrice, String flightPrice, String carPrice);
+
+  //Returns booking ID (ids.get(0)) and mongo session ID (ids.get(1))
+  String bookFlightWithCarPrepWithId(String customerId, String flightSegmentId, String flightId, String retFlightId,
+                                           String carName, String totalPrice, String flightPrice, String carPrice, String mongoSessionId);
+
+  String bookFlightPrepWithId(String customerId, String flightSegmentId, String flightId,
+                                    String retFlightId, String price, String mongoSessionId);
+
+  boolean cancelBookingPrepWithId(String user, String bookingId, String mongoSessionId);
 
   void loadDbs() throws IOException;
 

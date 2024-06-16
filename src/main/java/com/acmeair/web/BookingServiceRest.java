@@ -127,6 +127,8 @@ public class BookingServiceRest {
     @RolesAllowed({"user"})
     public Response cancelBookingsByNumber(@FormParam("number") String number,
                                            @FormParam("userid") String userid) {
+
+        String mongoSessionId;
         try {
             // make sure the user isn't trying to bookflights for someone else
             if (!userid.equals(jwt.getSubject())) {
@@ -144,7 +146,6 @@ public class BookingServiceRest {
                 booking = jsonReader.readObject();
                 jsonReader.close();
 
-                bs.cancelBooking(userid, number);
             } catch (RuntimeException npe) {
                 // Booking has already been deleted...
                 return Response.ok("booking " + number + " deleted.").build();
@@ -153,15 +154,27 @@ public class BookingServiceRest {
             boolean isOneWay = booking.getString("retFlightId").equals("NONE - ONE WAY FLIGHT");
             //TODO: check if needs fixing
 
+            PricesWithSessionIdDto obsoletePriceWithId;
             if (booking.getString("carBooked").equalsIgnoreCase("none")) {
-                rewardTracker.updateRewardMiles(userid, booking.getString("flightId"),
+                obsoletePriceWithId = rewardTracker.updateRewardMiles(userid, booking.getString("flightId"),
                         booking.getString("retFlightId"), false, null, isOneWay, transactionId);
             } else {
-                rewardTracker.updateRewardMiles(userid, booking.getString("flightId"),
+                obsoletePriceWithId = rewardTracker.updateRewardMiles(userid, booking.getString("flightId"),
                         booking.getString("retFlightId"), false, booking.getString("carBooked"), isOneWay, transactionId);
             }
 
-            return Response.ok("booking " + number + " deleted.").build();
+            if (bs.cancelBookingPrepWithId(userid, number, obsoletePriceWithId.getMongoSessionId())) {
+                mongoSessionCoordinator.setPrepped(transactionId, "bookingStatus");
+            } else {
+                mongoSessionCoordinator.setFailed(transactionId, "bookingStatus");
+            }
+
+            mongoSessionId = obsoletePriceWithId.getMongoSessionId();
+            if (sessionCommitted(transactionId, mongoSessionId)) {
+                return Response.ok("booking " + number + " deleted.").build();
+            } else {
+                return Response.serverError().build();
+            }
         } catch (Exception e) {
             e.printStackTrace();
             return Response.status(Status.INTERNAL_SERVER_ERROR).build();
@@ -239,6 +252,7 @@ public class BookingServiceRest {
 
             PricesWithSessionIdDto newPrices;
             String bookingId;
+            String mongoSessionId;
             Long totalPrice;
 
             String transactionId = keyGenerator.generate().toString();
@@ -253,16 +267,32 @@ public class BookingServiceRest {
                 if (carBooked) {
                     logger.warning("Booking includes car.");
                     totalPrice = newPrices.getFlightPrice() + newPrices.getCarPrice();
-                    bookingId = bs.bookFlightWithCar(userid, toFlightSegId, toFlightId, retFlightId, carName,
+                    //bookingAndSessionId
+                    bookingId = bs.bookFlightWithCarPrepWithId(userid, toFlightSegId, toFlightId, retFlightId, carName,
                             // totalPrice
                             totalPrice.toString(),
                             // newFlightPrice
                             newPrices.getFlightPrice().toString(),
                             // newCarPrice (0 if no car)
-                            newPrices.getCarPrice().toString());
+                            newPrices.getCarPrice().toString(),
+                            // mongoSessionId returned from rewardTracker
+                            newPrices.getMongoSessionId());
+
+                    if (bookingId.isEmpty()) {
+                        mongoSessionCoordinator.setFailed(transactionId, "bookingStatus");
+                    } else {
+                        mongoSessionCoordinator.setPrepped(transactionId, "bookingStatus");
+                    }
+
                 } else {
                     logger.warning("Booking includes no car.");
-                    bookingId = bs.bookFlight(userid, toFlightSegId, toFlightId, retFlightId, newPrices.getFlightPrice().toString());
+                    bookingId = bs.bookFlightPrepWithId(userid, toFlightSegId, toFlightId, retFlightId, newPrices.getFlightPrice().toString(), newPrices.getMongoSessionId());
+
+                    if (bookingId.isEmpty()) {
+                        mongoSessionCoordinator.setFailed(transactionId, "bookingStatus");
+                    } else {
+                        mongoSessionCoordinator.setPrepped(transactionId, "bookingStatus");
+                    }
                 }
                 //one way flight
             } else {
@@ -272,18 +302,34 @@ public class BookingServiceRest {
                 if (carBooked) {
                     logger.warning("Booking includes car.");
                     totalPrice = newPrices.getFlightPrice() + newPrices.getCarPrice();
-                    bookingId = bs.bookFlightWithCar(userid, toFlightSegId, toFlightId, "NONE - ONE WAY FLIGHT", carName,
+                    bookingId = bs.bookFlightWithCarPrepWithId(userid, toFlightSegId, toFlightId, "NONE - ONE WAY FLIGHT", carName,
                             // totalPrice
                             totalPrice.toString(),
                             // newFlightPrice
                             newPrices.getFlightPrice().toString(),
                             // newCarPrice (0 if no car)
-                            newPrices.getCarPrice().toString());
+                            newPrices.getCarPrice().toString(),
+                            // mongoSessionId returned from rewardTracker
+                            newPrices.getMongoSessionId());
+
+                    if (bookingId.isEmpty()) {
+                        mongoSessionCoordinator.setFailed(transactionId, "bookingStatus");
+                    } else {
+                        mongoSessionCoordinator.setPrepped(transactionId, "bookingStatus");
+                    }
                 } else {
                     logger.warning("Booking includes no car.");
-                    bookingId = bs.bookFlight(userid, toFlightSegId, toFlightId, "NONE - ONE WAY FLIGHT", newPrices.getFlightPrice().toString());
+                    bookingId = bs.bookFlightPrepWithId(userid, toFlightSegId, toFlightId, "NONE - ONE WAY FLIGHT", newPrices.getFlightPrice().toString(), newPrices.getMongoSessionId());
+
+                    if (bookingId.isEmpty()) {
+                        mongoSessionCoordinator.setFailed(transactionId, "bookingStatus");
+                    } else {
+                        mongoSessionCoordinator.setPrepped(transactionId, "bookingStatus");
+                    }
                 }
             }
+
+            mongoSessionId = newPrices.getMongoSessionId();
 
             String bookingInfo = "{\"oneWay\":\"" + oneWay
                     + "\",\"price\":\"" + (newPrices.getFlightPrice() + newPrices.getCarPrice())
@@ -293,10 +339,46 @@ public class BookingServiceRest {
                     + "\",\"carBooked\":\"" + (Objects.nonNull(carName) ? carName : "NONE")
                     + "\"}";
 
-            return Response.ok(bookingInfo).build();
+            if (sessionCommitted(transactionId, mongoSessionId)) {
+                return Response.ok(bookingInfo).build();
+            } else {
+                return Response.serverError().build();
+            }
         } catch (Exception e) {
             e.printStackTrace();
             return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    private boolean sessionCommitted(String transactionId, String mongoSessionId) {
+        if (mongoSessionCoordinator.allPrepCallsReturnedOk(transactionId)) {
+            logger.warning("will commit stuff now");
+            mongoSessionCoordinator.setCommittedDone(transactionId);
+            bs.commitMongoTransaction(mongoSessionId);
+            return true;
+        } else {
+            // TODO: find solution that actually gets here
+            mongoSessionCoordinator.setDone("true");
+            logger.severe("Not all transaction commits were successful - will be aborted");
+            bs.abortMongoTransaction(mongoSessionId);
+            return false;
+        }
+    }
+
+    private boolean sessionsCommitted(String transactionId, String bookingSessionId, String customerSessionId) {
+        if (mongoSessionCoordinator.allPrepCallsReturnedOk(transactionId)) {
+            logger.warning("will commit stuff now");
+            mongoSessionCoordinator.setCommittedDone(transactionId);
+            bs.commitMongoTransaction(bookingSessionId);
+            bs.commitMongoTransaction(customerSessionId);
+            return true;
+        } else {
+            // TODO: find solution that actually gets here
+            mongoSessionCoordinator.setDone("true");
+            logger.severe("Not all transaction commits were successful - will be aborted");
+            bs.abortMongoTransaction(bookingSessionId);
+            bs.abortMongoTransaction(customerSessionId);
+            return false;
         }
     }
 
